@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Volt IVR | Unitech International</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#e8e8e8;min-height:100vh;font-size:13px}
+:root{--g:#52b043;--g2:#6fcf60;--g3:#3a8c2e;--gg:rgba(82,176,67,0.15);--b:#0a0a0a;--b2:#0f0f0f;--b3:#161616;--b4:#1e1e1e;--b5:#262626;--bdr:#272727;--bdr2:#353535;--red:#e05252;--redbg:rgba(224,82,82,0.12);--amb:#e0a030;--ambbg:rgba(224,160,48,0.12);--tx:#e8e8e8;--tx2:#9a9a9a;--tx3:#505050}
+#auth{display:flex;min-height:100vh}
+.auth-left{flex:1;position:relative;overflow:hidden;background:#0a0a0a url('https://unitechinternational.co.uk/wp-content/uploads/2024/04/pexels-singkham-1108572-800x800.jpg') center/cover no-repeat}
+.auth-left::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(0,0,0,0.88) 0%,rgba(10,30,10,0.78) 50%,rgba(0,0,0,0.72) 100%)}
+.auth-left-content{position:relative;z-index:2;padding:48px;height:100%;display:flex;flex-direction:column;justify-content:space-between}
+.auth-hero-text{margin-top:auto;margin-bottom:auto}
+.auth-hero-text h1{font-size:36px;font-weight:800;color:#fff;line-height:1.15;margin-bottom:14px;letter-spacing:-0.5px}
+.auth-hero-text h1 span{color:var(--g)}
+.auth-hero-text p{font-size:14px;color:rgba(255,255,255,0.65);line-height:1.7;max-width:460px}
+.auth-left-footer{font-size:11px;color:rgba(255,255,255,0.3);line-height:1.6}
+.auth-left-footer a{color:var(--g);text-decoration:none}
+.auth-right{width:460px;flex-shrink:0;background:#0d0d0d;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:52px 48px;border-left:1px solid var(--bdr)}
+.auth-box{width:100%}
+.auth-title{font-size:22px;font-weight:800;color:var(--tx);margin-bottom:4px;letter-spacing:-0.3px}
+.auth-title span{color:var(--g)}
+.auth-sub{font-size:12px;color:var(--tx3);margin-bottom:32px;line-height:1.5}
+.auth-label{display:block;font-size:10px;font-weight:700;color:var(--tx2);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:5px}
+.auth-input{width:100%;padding:12px 14px;background:#1a1a1a;border:1px solid var(--bdr2);border-radius:8px;font-size:13px;color:var(--tx);outline:none;margin-bottom:14px;transition:border-color .2s}
+.auth-input:focus{border-color:var(--g);box-shadow:0 0 0 3px var(--gg)}
+.auth-btn{width:100%;background:var(--g);color:#000;border:none;padding:13px;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;letter-spacing:0.8px;text-transform:uppercase;transition:all .2s;margin-top:4px}
+.auth-btn:hover{background:var(--g2)}
+.auth-divider{height:1px;background:var(--bdr);margin:24px 0;position:relative}
+.auth-divider span{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#0d0d0d;padding:0 10px;font-size:10px;color:var(--tx3)}
+.auth-demo{text-align:center;font-size:11px;color:var(--tx3)}
+.auth-demo span{color:var(--g);cursor:pointer}
+#app{display:none;min-height:100vh}
+.topbar{position:fixed;top:0;left:0;right:0;height:56px;z-index:200;background:rgba(10,10,10,0.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--bdr);display:flex;align-items:center;padding:0 24px;gap:16px}
+.topbar-divider{width:1px;height:24px;background:var(--bdr2)}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.topbar-stat{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--b3);border:1px solid var(--bdr);border-radius:6px;font-size:11px;color:var(--tx2)}
+.topbar-stat .dot{width:7px;height:7px;border-radius:50%}
+.topbar-av{width:30px;height:30px;border-radius:50%;background:var(--g3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;border:2px solid var(--g)}
+.sidebar{width:220px;background:var(--b2);border-right:1px solid var(--bdr);position:fixed;top:56px;left:0;height:calc(100vh - 56px);display:flex;flex-direction:column;z-index:100;overflow-y:auto}
+.ns{padding:18px 16px 5px;font-size:9px;font-weight:700;color:var(--tx3);letter-spacing:1.5px;text-transform:uppercase}
+.ni{display:flex;align-items:center;gap:10px;padding:10px 16px;color:var(--tx2);cursor:pointer;font-size:12px;transition:all .15s;border-left:2px solid transparent;user-select:none}
+.ni:hover{background:rgba(82,176,67,0.05);color:var(--tx)}
+.ni.active{background:rgba(82,176,67,0.08);color:var(--g);border-left-color:var(--g)}
+.ni-icon{width:18px;text-align:center;font-size:14px;flex-shrink:0}
+.notif{width:6px;height:6px;background:var(--red);border-radius:50%;display:inline-block;margin-left:5px}
+.main{margin-left:220px;margin-top:56px;padding:24px 28px}
+.page{display:none}.page.active{display:block}
+.pt{font-size:18px;font-weight:800;color:var(--tx);margin-bottom:3px}
+.ps{font-size:12px;color:var(--tx2);margin-bottom:20px}
+.card{background:var(--b3);border:1px solid var(--bdr);border-radius:10px;padding:18px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+.sc{background:var(--b3);border:1px solid var(--bdr);border-radius:10px;padding:16px;position:relative;overflow:hidden}
+.sc.clickable{cursor:pointer;transition:transform .15s,border-color .15s}
+.sc.clickable:hover{transform:translateY(-2px);border-color:var(--g)}
+.sc.clickable .ss{display:flex;align-items:center;gap:4px}
+.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.sc.red::before{background:var(--red)}.sc.amb::before{background:var(--amb)}.sc.grn::before{background:var(--g)}.sc.blu::before{background:#5b9bd5}
+.sl{font-size:9px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.8px}
+.sv{font-size:24px;font-weight:800;margin:5px 0 2px}
+.sc.red .sv{color:var(--red)}.sc.amb .sv{color:var(--amb)}.sc.grn .sv{color:var(--g)}.sc.blu .sv{color:#5b9bd5}
+.ss{font-size:10px;color:var(--tx3)}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.badge.error{background:var(--redbg);color:#f08080;border:1px solid rgba(224,82,82,.2)}
+.badge.warning{background:var(--ambbg);color:#e0c060;border:1px solid rgba(224,160,48,.2)}
+.badge.pass{background:rgba(82,176,67,.1);color:var(--g);border:1px solid rgba(82,176,67,.2)}
+.badge.info{background:rgba(91,155,213,.1);color:#7ab8e8;border:1px solid rgba(91,155,213,.18)}
+.badge.purple{background:rgba(167,139,250,.1);color:#c4b5fd;border:1px solid rgba(167,139,250,.2)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:9px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.8px;padding:9px 12px;border-bottom:1px solid var(--bdr2)}
+td{padding:10px 12px;border-bottom:1px solid var(--bdr);font-size:12px;vertical-align:middle;color:var(--tx2)}
+tr:hover td{background:rgba(82,176,67,.02)}
+.check-row.error td:first-child{border-left:3px solid var(--red)}
+.check-row.warning td:first-child{border-left:3px solid var(--amb)}
+.check-row.pass td:first-child{border-left:3px solid var(--g)}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fgrp{margin-bottom:12px}
+.fgrp label{display:block;font-size:10px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.fgrp input,.fgrp select{width:100%;padding:8px 11px;background:#141414;border:1px solid var(--bdr2);border-radius:7px;font-size:12px;color:var(--tx);outline:none;font-family:inherit;transition:border-color .2s}
+.fgrp input:focus,.fgrp select:focus{border-color:var(--g)}
+.fst{font-size:9px;font-weight:700;color:var(--g);text-transform:uppercase;letter-spacing:1px;margin:14px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--bdr)}
+.btn{padding:8px 16px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:none;letter-spacing:.4px;text-transform:uppercase;transition:all .2s}
+.btn-g{background:var(--g);color:#000}.btn-g:hover{background:var(--g2)}
+.btn-o{background:transparent;color:var(--tx2);border:1px solid var(--bdr2)}.btn-o:hover{border-color:var(--g);color:var(--tx)}
+.uz{border:2px dashed var(--bdr2);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:all .2s;background:rgba(82,176,67,.02)}
+.uz:hover,.uz.drag{border-color:var(--g);background:rgba(82,176,67,.05)}
+.tpill{padding:3px 10px;background:var(--b5);border:1px solid var(--bdr2);border-radius:20px;font-size:9px;font-weight:700;color:var(--g)}
+.tabs{display:flex;border-bottom:1px solid var(--bdr);margin-bottom:16px}
+.tab{padding:9px 16px;font-size:12px;font-weight:500;color:var(--tx2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s}
+.tab.active{color:var(--g);border-bottom-color:var(--g)}
+.pb{height:4px;background:var(--b5);border-radius:3px;overflow:hidden}
+.pf{height:100%;border-radius:3px;transition:width .5s}
+.pf.red{background:var(--red)}.pf.amb{background:var(--amb)}.pf.grn{background:var(--g)}
+.alert{padding:11px 13px;border-radius:8px;font-size:11px;margin-bottom:14px;display:flex;gap:9px;align-items:flex-start;line-height:1.6}
+.alert.error{background:var(--redbg);color:#f08080;border:1px solid rgba(224,82,82,.2)}
+.alert.warning{background:var(--ambbg);color:#e0c060;border:1px solid rgba(224,160,48,.2)}
+.alert.info{background:rgba(82,176,67,.07);color:var(--g);border:1px solid rgba(82,176,67,.18)}
+.ir{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .1s}
+.ir:hover{background:rgba(82,176,67,.03)}
+.ii{width:34px;height:34px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.ii.elec{background:rgba(224,160,48,.12)}.ii.gas{background:rgba(224,82,82,.10)}.ii.water{background:rgba(91,155,213,.10)}
+.in_{flex:1}.in_ .n{font-size:12px;font-weight:600;color:var(--tx)}.in_ .m{font-size:10px;color:var(--tx3)}
+.ia{font-size:12px;font-weight:700;color:var(--tx);margin-right:8px}
+.ec{font-size:9px;font-weight:700;color:#f08080;background:var(--redbg);border:1px solid rgba(224,82,82,.2);padding:2px 7px;border-radius:12px}
+.client-card{background:var(--b3);border:1px solid var(--bdr);border-radius:10px;overflow:hidden;cursor:pointer;transition:border-color .2s,transform .15s}
+.client-card:hover{border-color:var(--g);transform:translateY(-2px)}
+.cc-banner{height:60px;background:var(--b4)}
+.cc-body{padding:16px}
+.cc-av{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#000;margin-top:-28px;margin-bottom:10px;border:2px solid var(--b3)}
+.cc-name{font-size:13px;font-weight:700;color:var(--tx);margin-bottom:3px}
+.cc-meta{font-size:10px;color:var(--tx3);line-height:1.6}
+.bar-chart{display:flex;align-items:flex-end;gap:4px;height:100px;margin-top:8px}
+.bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.bar{width:100%;border-radius:3px 3px 0 0;cursor:pointer}
+.bar.normal{background:var(--g);opacity:.65}.bar.anomaly{background:var(--red);opacity:.9}.bar.warnb{background:var(--amb)}
+.bar-label{font-size:8px;color:var(--tx3);white-space:nowrap}
+.expand-btn{background:none;border:none;font-size:10px;color:var(--g);cursor:pointer;padding:0;font-weight:700}
+.check-detail{padding:12px 14px;background:var(--b2);border-radius:7px;border:1px solid var(--bdr);font-size:11px;line-height:1.7;color:var(--tx2)}
+.sh{font-size:13px;font-weight:700;color:var(--tx)}
+.hr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.contract-item{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--bdr)}
+.contract-item:last-child{border-bottom:none}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:999;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--b3);border:1px solid var(--bdr2);border-radius:12px;padding:28px;width:500px;max-height:85vh;overflow-y:auto}
+.modal h3{font-size:15px;font-weight:700;margin-bottom:16px;color:var(--tx)}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;padding-top:14px;border-top:1px solid var(--bdr)}
+.page-banner{border-radius:10px;margin-bottom:20px;padding:24px 28px;position:relative;overflow:hidden;background:var(--b3) center/cover no-repeat;min-height:100px;display:flex;align-items:center}
+.page-banner::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,5,5,0.92) 0%,rgba(5,5,5,0.6) 100%)}
+.page-banner.energy{background-image:url('https://unitechinternational.co.uk/wp-content/uploads/2024/04/pexels-pixabay-356036-1-800x800.jpg')}
+.page-banner.solar{background-image:url('https://unitechinternational.co.uk/wp-content/uploads/2024/04/pexels-alex-chistol-3992076-800x800.jpg')}
+.page-banner.office{background-image:url('https://unitechinternational.co.uk/wp-content/uploads/2024/04/pexels-olga-lioncat-7245368-800x800.jpg')}
+.page-banner.street{background-image:url('https://unitechinternational.co.uk/wp-content/uploads/2024/04/pexels-stephen-alicia-2554536-800x800.jpg')}
+.page-banner-inner{position:relative;z-index:2}
+.page-banner h2{font-size:18px;font-weight:800;color:#fff;margin-bottom:4px}
+.page-banner p{font-size:12px;color:rgba(255,255,255,0.6);max-width:500px}
+.atom-svg{display:block}
+</style>
+</head>
+<body>
+
+<div id="auth">
+  <div class="auth-left">
+    <div class="auth-left-content">
+      <div class="auth-hero-text">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+          <svg class="atom-svg" width="52" height="52" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="30" cy="30" rx="24" ry="9" fill="none" stroke="#52b043" stroke-width="1.5" opacity="0.85"/>
+            <ellipse cx="30" cy="30" rx="24" ry="9" fill="none" stroke="#52b043" stroke-width="1.5" opacity="0.85" transform="rotate(60 30 30)"/>
+            <ellipse cx="30" cy="30" rx="24" ry="9" fill="none" stroke="#52b043" stroke-width="1.5" opacity="0.85" transform="rotate(120 30 30)"/>
+            <circle cx="54" cy="30" r="3" fill="#8de87a"/><circle cx="42" cy="9" r="3" fill="#52b043"/>
+            <circle cx="18" cy="9" r="3" fill="#52b043" opacity="0.8"/>
+            <circle cx="30" cy="30" r="5" fill="#52b043" opacity="0.9"/>
+            <circle cx="30" cy="30" r="2.5" fill="#ffffff" opacity="0.9"/>
+          </svg>
+          <div>
+            <div style="font-size:28px;font-weight:800;color:#fff;letter-spacing:1px;line-height:1">Volt IVR</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px;margin-top:4px;text-transform:uppercase">by Unitech International</div>
+          </div>
+        </div>
+        <h1>Powering <span>Efficiency</span> &amp; Sustainability</h1>
+        <p>Stop overpaying on energy. Volt IVR cross-checks every utility invoice against your supply contract, network tariffs, consumption history and an extensive set of industry billing rules and compliance criteria. Whether errors are happening right now or buried in years of historic supply, Volt IVR will find them. Spot live billing mistakes as they happen, reconcile historic overcharges, and ensure every recoverable charge is identified and claimed.</p>
+        <div style="margin-top:24px;font-size:12px;color:rgba(255,255,255,0.35);letter-spacing:0.5px">Directly enabling the recovery of millions for our customers across the UK.</div>
+      </div>
+      <div class="auth-left-footer">
+        &copy; 2026 Unitech International Ltd &middot; Company No. 10611226<br>
+        <a href="tel:02081294748">020 8129 4748</a> &middot; <a href="mailto:info@unitechinternational.co.uk">info@unitechinternational.co.uk</a>
+      </div>
+    </div>
+  </div>
+  <div class="auth-right">
+    <div class="auth-box">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+        <svg class="atom-svg" width="44" height="44" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+          <ellipse cx="30" cy="30" rx="24" ry="9" fill="none" stroke="#52b043" stroke-width="1.5" opacity="0.85"/>
+          <ellipse cx="30" cy="30" rx="24" ry="9" fill="none" stroke="#52b043" stroke-width="1.5" opacity="0.85" transform="rotate(60 30 30)"/>
+          <ellipse cx="30" cy="30" rx="24" ry="9" fill="none" stroke="#52b043" stroke-width="1.5" opacity="0.85" transform="rotate(120 30 30)"/>
+          <circle cx="54" cy="30" r="3" fill="#8de87a"/><circle cx="42" cy="9" r="3" fill="#52b043"/>
+          <circle cx="18" cy="9" r="3" fill="#52b043" opacity="0.8"/>
+          <circle cx="30" cy="30" r="5" fill="#52b043" opacity="0.9"/>
+          <circle cx="30" cy="30" r="2.5" fill="#ffffff" opacity="0.9"/>
+        </svg>
+        <div>
+          <div style="font-size:26px;font-weight:800;color:var(--g);letter-spacing:1px;line-height:1">Volt IVR</div>
+          <div style="font-size:10px;color:var(--tx3);margin-top:3px">by Unitech International</div>
+        </div>
+      </div>
+      <div class="auth-title">Client <span>Portal</span></div>
+      <div class="auth-sub">Sign in to access Volt IVR — utility bill validation &amp; recovery</div>
+      <label class="auth-label">Email address</label>
+      <input class="auth-input" type="email" value="client@unitechinternational.co.uk">
+      <label class="auth-label">Password</label>
+      <input class="auth-input" type="password" value="••••••••">
+      <button class="auth-btn" onclick="doLogin()">Sign in to Volt IVR</button>
+      <div class="auth-divider"><span>secure access</span></div>
+      <div class="auth-demo">Demo mode — <span onclick="doLogin()">click here to enter with any credentials</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:8px">
+      <svg class="atom-svg" width="24" height="24" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="30" cy="30" rx="24" ry="9" fill="none" stroke="#52b043" stroke-width="2" opacity="0.85"/>
+        <ellipse cx="30" cy="30" rx="24" ry="9" fill="none" stroke="#52b043" stroke-width="2" opacity="0.85" transform="rotate(60 30 30)"/>
+        <ellipse cx="30" cy="30" rx="24" ry="9" fill="none" stroke="#52b043" stroke-width="2" opacity="0.85" transform="rotate(120 30 30)"/>
+        <circle cx="54" cy="30" r="3.5" fill="#8de87a"/>
+        <circle cx="30" cy="30" r="5" fill="#52b043"/>
+        <circle cx="30" cy="30" r="2.5" fill="#fff" opacity="0.9"/>
+      </svg>
+      <span style="font-size:15px;font-weight:800;color:var(--g);letter-spacing:0.5px">Volt IVR</span>
+    </div>
+    <div class="topbar-divider"></div>
+    <div style="font-size:12px;font-weight:600;color:var(--tx2)">by Unitech International</div>
+    <div class="topbar-right">
+      <div class="topbar-stat"><span class="dot" style="background:var(--red)"></span>12 errors</div>
+      <div class="topbar-stat"><span class="dot" style="background:var(--amb)"></span>28 warnings</div>
+      <div class="topbar-stat"><span class="dot" style="background:var(--g)"></span>£4,820 est. recovery</div>
+      <div class="topbar-divider"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="topbar-av">JD</div>
+        <span style="font-size:12px;color:var(--tx2)">James Davies</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="ns">Main</div>
+    <div class="ni active" onclick="showPage('dashboard',this)"><span class="ni-icon">📊</span>Dashboard</div>
+    <div class="ni" onclick="showPage('clients',this)"><span class="ni-icon">🏢</span>Client Management</div>
+    <div class="ni" onclick="showPage('upload',this)"><span class="ni-icon">📤</span>Upload Documents</div>
+    <div class="ni" onclick="showPage('invoices',this)"><span class="ni-icon">📄</span>Invoice Library</div>
+    <div class="ni" onclick="showPage('validation',this)"><span class="ni-icon">🔍</span>Validation Results <span class="notif"></span></div>
+    <div class="ns">Analysis</div>
+    <div class="ni" onclick="showPage('consumption',this)"><span class="ni-icon">📈</span>Consumption Profile</div>
+    <div class="ni" onclick="showPage('billing',this)"><span class="ni-icon">🔎</span>Billing Checks</div>
+    <div class="ni" onclick="showPage('accounts',this)"><span class="ni-icon">🗂️</span>Site Register</div>
+    <div class="ns">Config</div>
+    <div class="ni" onclick="showPage('settings',this)"><span class="ni-icon">⚙️</span>Settings</div>
+    <div style="margin-top:auto;padding:14px 16px;border-top:1px solid var(--bdr)">
+      <div style="padding:10px 12px;background:var(--b3);border:1px solid var(--bdr);border-radius:8px;display:flex;align-items:center;gap:8px">
+        <svg class="atom-svg" width="22" height="22" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+          <ellipse cx="30" cy="30" rx="24" ry="9" fill="none" stroke="#52b043" stroke-width="2" opacity="0.85"/>
+          <ellipse cx="30" cy="30" rx="24" ry="9" fill="none" stroke="#52b043" stroke-width="2" opacity="0.85" transform="rotate(60 30 30)"/>
+          <ellipse cx="30" cy="30" rx="24" ry="9" fill="none" stroke="#52b043" stroke-width="2" opacity="0.85" transform="rotate(120 30 30)"/>
+          <circle cx="30" cy="30" r="4" fill="#52b043"/>
+          <circle cx="30" cy="30" r="2" fill="#fff" opacity="0.9"/>
+        </svg>
+        <div>
+          <div style="font-size:11px;font-weight:800;color:var(--g)">Volt IVR</div>
+          <div style="font-size:9px;color:var(--tx3);margin-top:1px">Unitech International v2.1</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <div id="page-dashboard" class="page active">
+      <div class="page-banner energy"><div class="page-banner-inner"><h2>Dashboard</h2><p>Utility billing validation overview</p></div></div>
+      <div class="card" id="spend-status-card" style="margin-bottom:18px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;right:0;height:3px" id="spend-status-bar"></div>
+        <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+          <div style="min-width:180px">
+            <div class="sl">Spend vs. contracted rates</div>
+            <div id="spend-verdict" style="font-size:24px;font-weight:800;margin:6px 0 3px"></div>
+            <div id="spend-sub" style="font-size:10px;color:var(--tx3)"></div>
+          </div>
+          <div style="flex:1;min-width:260px;font-size:12px;color:var(--tx2);line-height:1.65" id="spend-detail"></div>
+          <button class="btn btn-g" id="spend-cta" style="flex-shrink:0"></button>
+        </div>
+      </div>
+      <div class="g4">
+        <div class="sc red clickable" onclick="goToValidation('errors')"><div class="sl">Critical Errors</div><div class="sv">12</div><div class="ss">Across 5 invoices →</div></div>
+        <div class="sc amb clickable" onclick="goToValidation('warnings')"><div class="sl">Warnings</div><div class="sv">28</div><div class="ss">Require review →</div></div>
+        <div class="sc grn clickable" onclick="goToValidation('passed')"><div class="sl">Checks Passed</div><div class="sv">187</div><div class="ss">This month →</div></div>
+        <div class="sc blu clickable" onclick="goToValidation('flagged')"><div class="sl">Est. Overcharges</div><div class="sv">£4,820</div><div class="ss">Pending recovery →</div></div>
+      </div>
+      <div class="g2">
+        <div class="card"><div class="hr"><div class="sh">Recent invoices</div><button class="btn btn-o" style="font-size:10px;padding:4px 10px" onclick="showPage('invoices',null)">View all</button></div><div id="recent-inv"></div></div>
+        <div class="card"><div class="sh" style="margin-bottom:14px">Check category summary</div><div id="cat-summary"></div></div>
+      </div>
+      <div class="alert error"><span style="font-size:14px;flex-shrink:0">🚨</span><div><strong>High priority:</strong> 3 invoices flagged with MPAN mismatch and incorrect CCL rates — estimated overcharge <strong>£2,340</strong>. <a href="#" onclick="showPage('validation',null);return false" style="color:var(--g);font-weight:700">Review now →</a></div></div>
+    </div>
+
+    <div id="page-clients" class="page">
+      <div class="page-banner solar"><div class="page-banner-inner"><h2>Client Management</h2><p>Manage client portfolios, sites and validation status</p></div></div>
+      <div class="hr">
+        <input type="text" placeholder="Search clients…" style="padding:7px 11px;background:#141414;border:1px solid var(--bdr2);border-radius:7px;font-size:12px;color:var(--tx);outline:none;width:200px">
+        <button class="btn btn-g" onclick="openAddClient()">+ Add Client</button>
+      </div>
+      <div id="client-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"></div>
+    </div>
+
+    <div id="page-upload" class="page">
+      <div class="page-banner street"><div class="page-banner-inner"><h2>Upload Documents</h2><p>Upload utility invoices and supply contracts for automated validation</p></div></div>
+      <div class="g2">
+        <div>
+          <div class="card" style="margin-bottom:16px">
+            <div class="sh" style="margin-bottom:14px">📄 Invoice upload</div>
+            <div class="uz" onclick="document.getElementById('fileInput').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event,'invoice')">
+              <div style="font-size:34px;margin-bottom:10px">📂</div>
+              <div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:5px">Drop invoices or click to browse</div>
+              <div style="font-size:11px;color:var(--tx2)">PDF, EDI, CSV, XML supported</div>
+              <div style="display:flex;gap:6px;justify-content:center;margin-top:10px"><span class="tpill">PDF</span><span class="tpill">EDI</span><span class="tpill">CSV</span><span class="tpill">XML</span></div>
+            </div>
+            <input type="file" id="fileInput" multiple accept=".pdf,.edi,.csv,.xml" style="display:none" onchange="handleFileSelect(event,'invoice')">
+            <div id="upload-progress" style="display:none;margin-top:14px">
+              <div style="font-size:11px;font-weight:700;margin-bottom:7px;color:var(--g)">Processing invoice…</div>
+              <div class="pb"><div class="pf amb" id="prog-fill" style="width:0%"></div></div>
+              <div id="prog-label" style="font-size:10px;color:var(--tx3);margin-top:5px">Initialising…</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="sh" style="margin-bottom:6px">📋 Supply contract upload</div>
+            <div style="font-size:11px;color:var(--tx2);margin-bottom:14px;line-height:1.7">Upload your supply contract to extract rates, capacities and tariff terms. All future invoices will be validated against these automatically.</div>
+            <div class="uz" style="padding:22px" onclick="document.getElementById('contractInput').click()">
+              <div style="font-size:26px;margin-bottom:8px">📋</div>
+              <div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:4px">Drop contract or click to browse</div>
+              <div style="font-size:11px;color:var(--tx2)">PDF or CSV</div>
+              <div style="display:flex;gap:6px;justify-content:center;margin-top:8px"><span class="tpill">PDF</span><span class="tpill">CSV</span><span class="tpill">XLSX</span></div>
+            </div>
+            <input type="file" id="contractInput" accept=".pdf,.csv,.xlsx" style="display:none" onchange="handleFileSelect(event,'contract')">
+            <div id="contract-status" style="display:none;margin-top:12px" class="alert info">
+              <span style="font-size:14px;flex-shrink:0">✅</span><div id="contract-msg"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="sh" style="margin-bottom:4px">📝 Manual entry</div>
+          <div class="fst">Account details</div>
+          <div class="fg">
+            <div class="fgrp"><label>Account ref</label><input type="text" value="ELEC-00234"></div>
+            <div class="fgrp"><label>MPAN / MPRN</label><input type="text" value="1012345678901"></div>
+            <div class="fgrp"><label>Utility type</label><select><option>Electricity</option><option>Gas</option><option>Water</option></select></div>
+            <div class="fgrp"><label>Supplier</label><input type="text" value="British Gas Business"></div>
+          </div>
+          <div class="fst">Invoice details</div>
+          <div class="fg">
+            <div class="fgrp"><label>Invoice number</label><input type="text" value="INV-20240315-001"></div>
+            <div class="fgrp"><label>Invoice date</label><input type="date" value="2024-03-15"></div>
+            <div class="fgrp"><label>Total cost (£)</label><input type="number" step="0.01" value="3842.56"></div>
+            <div class="fgrp"><label>Total VAT (£)</label><input type="number" step="0.01" value="768.51"></div>
+            <div class="fgrp"><label>Total kWh</label><input type="number" value="28640"></div>
+            <div class="fgrp"><label>CCL charge (£)</label><input type="number" step="0.01" value="182.50"></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:8px">
+            <button class="btn btn-g" onclick="showPage('validation',null)">▶ Run Validation</button>
+            <button class="btn btn-o">Clear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="page-invoices" class="page">
+      <div class="page-banner office"><div class="page-banner-inner"><h2>Invoice Library</h2><p>All uploaded invoices and validation status</p></div></div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--bdr);display:flex;gap:10px;align-items:center">
+          <input type="text" placeholder="Search invoices…" style="padding:7px 11px;background:#141414;border:1px solid var(--bdr2);border-radius:7px;font-size:12px;width:220px;outline:none;color:var(--tx)">
+          <select style="padding:7px 11px;background:#141414;border:1px solid var(--bdr2);border-radius:7px;font-size:12px;outline:none;color:var(--tx)"><option>All types</option><option>Electricity</option><option>Gas</option><option>Water</option></select>
+          <button class="btn btn-g" style="margin-left:auto" onclick="exportPDF()">⬇ Export PDF</button>
+        </div>
+        <div id="inv-library"></div>
+      </div>
+    </div>
+
+    <div id="page-validation" class="page">
+      <div class="hr">
+        <div><div class="pt">Validation Results</div><div class="ps">INV-20240315-001 | ELEC-00234 | British Gas Business</div></div>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-o" onclick="exportPDF()">⬇ Export PDF</button>
+          <button class="btn btn-g" onclick="openSupplierReport()">📄 Generate Supplier Report</button>
+        </div>
+      </div>
+      <div class="g4" style="margin-bottom:16px">
+        <div class="sc red clickable" onclick="switchTabByFilter('errors')"><div class="sl">Errors</div><div class="sv">8</div></div>
+        <div class="sc amb clickable" onclick="switchTabByFilter('warnings')"><div class="sl">Warnings</div><div class="sv">11</div></div>
+        <div class="sc grn clickable" onclick="switchTabByFilter('passed')"><div class="sl">Passed</div><div class="sv">14</div></div>
+        <div class="sc blu clickable" onclick="switchTabByFilter('flagged')"><div class="sl">Est. Overcharge</div><div class="sv">£1,240</div></div>
+      </div>
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('flagged',this)">Issues found (19)</div>
+        <div class="tab" onclick="switchTab('errors',this)">Errors (8)</div>
+        <div class="tab" onclick="switchTab('warnings',this)">Warnings (11)</div>
+        <div class="tab" onclick="switchTab('passed',this)">Passed (14)</div>
+      </div>
+      <div class="alert info" style="margin-bottom:16px" id="validation-alert"><span style="font-size:14px;flex-shrink:0">🔍</span><div>Volt IVR runs a full suite of billing, tariff, network and consumption checks in the background on every invoice. Only items requiring your attention are listed below — <strong>14 additional checks passed</strong> with no issues.</div></div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <table><thead id="check-table-head"><tr><th>#</th><th>Status</th><th>What we found</th></tr></thead>
+        <tbody id="check-table"></tbody></table>
+      </div>
+    </div>
+
+    <div id="page-consumption" class="page">
+      <div class="page-banner energy"><div class="page-banner-inner"><h2>Consumption Profile</h2><p>Site consumption baseline, anomaly detection and trend analysis</p></div></div>
+      <div class="g4" style="margin-bottom:16px">
+        <div class="sc grn clickable" onclick="filterConsumption('all')"><div class="sl">Baseline avg/month</div><div class="sv">23,450</div><div class="ss">kWh (12-month) →</div></div>
+        <div class="sc red clickable" onclick="filterConsumption('flagged')"><div class="sl">Anomalies detected</div><div class="sv">3</div><div class="ss">Last 12 months →</div></div>
+        <div class="sc amb clickable" onclick="filterConsumption('largest')"><div class="sl">Largest deviation</div><div class="sv">+22.1%</div><div class="ss">Feb 2024 →</div></div>
+        <div class="sc blu clickable" onclick="filterConsumption('all')"><div class="sl">YoY change</div><div class="sv">+8.2%</div><div class="ss">vs prior year avg →</div></div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="hr"><div class="sh">12-month consumption (kWh)</div><div style="display:flex;gap:10px;font-size:10px"><span style="color:var(--g)">■ Normal</span><span style="color:var(--amb)">■ High</span><span style="color:var(--red)">■ Anomaly</span></div></div>
+          <div id="cons-chart" class="bar-chart"></div>
+        </div>
+        <div class="card">
+          <div class="hr"><div class="sh">Monthly consumption table</div><div id="cons-filter-tag" style="display:none;align-items:center;gap:6px;font-size:10px"><span class="badge info" id="cons-filter-label"></span> <span style="color:var(--g);cursor:pointer;font-weight:700" onclick="filterConsumption('all')">Clear ✕</span></div></div>
+          <table><thead><tr><th>Month</th><th>kWh</th><th>vs Average</th><th>Status</th></tr></thead>
+          <tbody id="cons-table"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <div id="page-billing" class="page">
+      <div class="hr">
+        <div><div class="pt">Billing Checks</div><div class="ps">Your invoices checked against contract rates, network charges and industry billing rules</div></div>
+        <button class="btn btn-g" onclick="exportPDF()">⬇ Export Report</button>
+      </div>
+      <div class="alert info"><span style="font-size:14px;flex-shrink:0">📋</span><div>Contract loaded: <strong>BGB-SME-HH-2024-A.pdf</strong> — British Gas Business · 01 Jan 2024–31 Dec 2024</div></div>
+      <div class="g4" style="margin-bottom:18px">
+        <div class="sc grn clickable" onclick="filterBilling('pass')"><div class="sl">Checks passed</div><div class="sv">13</div></div>
+        <div class="sc red clickable" onclick="filterBilling('error')"><div class="sl">Errors found</div><div class="sv">6</div></div>
+        <div class="sc amb clickable" onclick="filterBilling('warning')"><div class="sl">Needs review</div><div class="sv">5</div></div>
+        <div class="sc blu clickable" onclick="filterBilling('flagged')"><div class="sl">Est. overcharge</div><div class="sv">£1,236</div></div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="hr" style="margin-bottom:4px"><div class="sh">Contract rate checks</div><div id="contract-filter-tag" style="display:none;align-items:center;gap:6px;font-size:10px"><span class="badge info" id="contract-filter-label"></span> <span style="color:var(--g);cursor:pointer;font-weight:700" onclick="filterBilling('all')">Clear ✕</span></div></div>
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:14px">Your billed rates compared against your agreed contract terms</div>
+        <div id="billing-contract"></div>
+      </div>
+      <div class="card">
+        <div class="hr" style="margin-bottom:4px"><div class="sh">Network charge checks</div><div id="network-filter-tag" style="display:none;align-items:center;gap:6px;font-size:10px"><span class="badge info" id="network-filter-label"></span> <span style="color:var(--g);cursor:pointer;font-weight:700" onclick="filterBilling('all')">Clear ✕</span></div></div>
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:14px">Charges applied by your network operator, verified against published rates and your agreed terms</div>
+        <table><thead><tr><th>Charge</th><th>Billed</th><th>Expected</th><th>Difference</th><th>Status</th></tr></thead>
+        <tbody id="billing-network"></tbody></table>
+      </div>
+    </div>
+
+    <div id="page-accounts" class="page">
+      <div class="pt">Site Register</div><div class="ps">All active and closed utility sites, meters and supply details</div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--bdr)">
+          <input type="text" placeholder="Search by site name, MPAN, or supplier…" style="padding:7px 11px;background:#141414;border:1px solid var(--bdr2);border-radius:7px;font-size:12px;width:340px;outline:none;color:var(--tx)">
+        </div>
+        <table><thead><tr><th>Site ref</th><th>Site name</th><th>MPAN / MPRN</th><th>Type</th><th>Supplier</th><th>Tariff</th><th>Contract</th><th>Status</th></tr></thead>
+        <tbody id="account-table"></tbody></table>
+      </div>
+    </div>
+
+    <div id="page-settings" class="page">
+      <div class="pt">Settings</div><div class="ps">Configure validation thresholds and alert preferences</div>
+      <div class="g2">
+        <div class="card">
+          <div class="sh" style="margin-bottom:14px">🎚️ Validation thresholds</div>
+          <div class="fgrp"><label>Exceptional consumption threshold (%)</label><input type="number" value="20"></div>
+          <div class="fgrp"><label>Exceptional total cost threshold (%)</label><input type="number" value="15"></div>
+          <div class="fgrp"><label>Max demand limit (kW)</label><input type="number" value="150"></div>
+          <div class="fgrp"><label>CCL kWh/day threshold</label><input type="number" value="33"></div>
+          <button class="btn btn-g">Save Settings</button>
+        </div>
+        <div class="card">
+          <div class="sh" style="margin-bottom:14px">🔔 Alerts</div>
+          <div class="fgrp"><label>Alert email</label><input type="email" value="client@unitechinternational.co.uk"></div>
+          <div class="fgrp"><label>Alert on</label><select><option>Errors only</option><option>Errors and warnings</option><option>All results</option></select></div>
+          <div class="fgrp"><label>Report frequency</label><select><option>Each upload</option><option>Daily digest</option><option>Weekly summary</option></select></div>
+          <button class="btn btn-g" style="margin-top:8px">Save Notifications</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="modal-overlay" id="clientModal">
+  <div class="modal">
+    <h3>Add new client</h3>
+    <div class="fg">
+      <div class="fgrp"><label>Client name</label><input type="text" id="newClientName" placeholder="e.g. Acme Manufacturing Ltd"></div>
+      <div class="fgrp"><label>Sector</label><select><option>Manufacturing</option><option>Retail</option><option>Logistics</option><option>Office</option><option>Housing Associations</option></select></div>
+      <div class="fgrp"><label>Contact email</label><input type="email" placeholder="email@company.com"></div>
+      <div class="fgrp"><label>Number of sites</label><input type="number" value="1"></div>
+    </div>
+    <div class="fst" style="margin-top:2px">Supply contract (optional)</div>
+    <div style="font-size:11px;color:var(--tx3);margin-bottom:10px;line-height:1.6">Upload the customer's supply contract now to enable contract rate validation from their first invoice. Can also be added later from Upload Documents.</div>
+    <div class="uz" style="padding:18px" onclick="document.getElementById('newClientContract').click()">
+      <div style="font-size:22px;margin-bottom:6px">📋</div>
+      <div style="font-size:12px;font-weight:700;color:var(--tx);margin-bottom:2px" id="newClientContractLabel">Drop contract or click to browse</div>
+      <div style="font-size:10px;color:var(--tx2)">PDF, CSV or XLSX</div>
+    </div>
+    <input type="file" id="newClientContract" accept=".pdf,.csv,.xlsx" style="display:none" onchange="handleNewClientContract(event)">
+    <div class="modal-footer">
+      <button class="btn btn-o" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-g" onclick="addClient()">Add Client</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="reportModal">
+  <div class="modal" style="width:640px">
+    <h3>📄 Supplier dispute report</h3>
+    <div style="font-size:11px;color:var(--tx3);margin-bottom:14px;line-height:1.6">A ready-to-send summary of the errors found on this invoice, addressed to your supplier. Edit as needed, then copy or download to send.</div>
+    <div class="fgrp"><label>Recipient (supplier)</label><input type="text" id="reportSupplier" value="British Gas Business" onchange="refreshReport()"></div>
+    <div class="fgrp"><label>Your reference</label><input type="text" id="reportAccount" value="ELEC-00234 · Invoice INV-20240315-001" onchange="refreshReport()"></div>
+    <textarea id="reportText" style="width:100%;min-height:340px;padding:14px;background:#141414;border:1px solid var(--bdr2);border-radius:8px;font-size:11.5px;color:var(--tx);font-family:'SF Mono',Menlo,monospace;line-height:1.7;resize:vertical;outline:none"></textarea>
+    <div id="reportCopyMsg" style="display:none;font-size:11px;color:var(--g);margin-top:8px">✓ Copied to clipboard</div>
+    <div class="modal-footer">
+      <button class="btn btn-o" onclick="closeReportModal()">Close</button>
+      <button class="btn btn-o" onclick="copyReport()">Copy to clipboard</button>
+      <button class="btn btn-o" onclick="downloadReportTxt()">⬇ Download .txt</button>
+      <button class="btn btn-g" onclick="downloadReportPDF()">⬇ Download PDF</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var checks=[
+  {id:1,name:"EDI File Validity",cat:"File Integrity",status:"error",detail:"File sequence gap: expected seq 0042, received 0044."},
+  {id:2,name:"Account reference exists",cat:"Account Matching",status:"pass",detail:"Account reference ELEC-00234 found. MPAN confirmed."},
+  {id:3,name:"MPAN Mismatch",cat:"Account Matching",status:"error",detail:"MPAN on bill: 1012345678902. Account: 1012345678901. Billing risk: £3,842.56."},
+  {id:4,name:"Supplier Match",cat:"Account Matching",status:"pass",detail:"Supplier matches account record."},
+  {id:5,name:"Historic Supplier Match",cat:"Account Matching",status:"warning",detail:"Previous supplier EDF Energy active until 2023-11-30."},
+  {id:6,name:"Account Closed",cat:"Account Matching",status:"pass",detail:"Account ELEC-00234 is active."},
+  {id:7,name:"Tariff Linking",cat:"Tariff",status:"error",detail:"Unexpected items in bill not in tariff definition SME-HH-2024-A."},
+  {id:8,name:"Total Cost Calculation",cat:"Financial",status:"error",detail:"Sum of line items: £3,791.44. Billed: £3,842.56. Discrepancy: £51.12."},
+  {id:9,name:"Total VAT Calculation",cat:"Financial",status:"error",detail:"VAT sum: £758.29. Billed VAT: £768.51. Discrepancy: £10.22."},
+  {id:10,name:"Tariff Check",cat:"Tariff",status:"warning",detail:"Recalculated cost: £3,719.00. Billed: £3,842.56. Variance 3.3%."},
+  {id:11,name:"Exceptional Consumption",cat:"Consumption",status:"error",detail:"Current: 28,640 kWh. Previous: 21,200 kWh (+35.1%). Exceeds threshold."},
+  {id:12,name:"Exceptional Total Cost",cat:"Financial",status:"error",detail:"Current: £3,842.56. Previous: £2,980.00 (+28.9%). Exceeds threshold."},
+  {id:13,name:"Withdrawn/Cancelled Match",cat:"File Integrity",status:"pass",detail:"No withdrawn bills in this file."},
+  {id:14,name:"Bill Paid",cat:"Financial",status:"pass",detail:"No duplicate invoice found."},
+  {id:15,name:"Period Paid",cat:"Financial",status:"warning",detail:"Previous Feb 2024 invoice exists. Possible amended invoice."},
+  {id:16,name:"Multiple Dates",cat:"File Integrity",status:"warning",detail:"Two dates in bill. Possible combined billing."},
+  {id:17,name:"Multiple Bills",cat:"File Integrity",status:"pass",detail:"Only one invoice for ELEC-00234 in this file."},
+  {id:18,name:"Credits/Arrears Present",cat:"Financial",status:"warning",detail:"Arrears element £142.80 present."},
+  {id:19,name:"Meter Readings",cat:"Consumption",status:"error",detail:"Read continuity error: gap of 5 kWh. Meter serial mismatch."},
+  {id:20,name:"Network Charges",cat:"Network",status:"warning",detail:"Reactive charge (£28.50) not in tariff definition."},
+  {id:21,name:"Network Tariff Linking",cat:"Network",status:"warning",detail:"3 of 4 charge bands linked correctly."},
+  {id:22,name:"Account Monitor/Notes",cat:"Account Matching",status:"warning",detail:"Monitor active: expected credit from meter recalibration."},
+  {id:23,name:"Climate Change Levy",cat:"Tax & Levy",status:"error",detail:"Expected CCL at 0.775p/kWh = £221.96. Billed: £182.50 at 0.637p/kWh."},
+  {id:24,name:"Load Factor",cat:"Network",status:"pass",detail:"Load factor 94.7% — within acceptable range."},
+  {id:25,name:"Maximum Demand",cat:"Network",status:"error",detail:"Billed MD: 142 kW. Account limit: 130 kW."},
+  {id:26,name:"Supply Capacity",cat:"Network",status:"pass",detail:"Billed: 150 kVA. Agreed: 150 kVA. Exact match."},
+  {id:27,name:"TRIAD",cat:"Network",status:"warning",detail:"TRIAD: £320.00. Agreed: £295.00. Variance: £25.00."},
+  {id:28,name:"CCL and VAT Rate checks",cat:"Tax & Levy",status:"error",detail:"Standing charge incorrectly rated at 5% VAT."},
+  {id:29,name:"Unexpected Chargeable Data",cat:"Tariff",status:"warning",detail:"MMD charged £14.20 — tariff defines as data-only."},
+  {id:30,name:"Meter Read Status",cat:"Consumption",status:"warning",detail:"Estimated reads on bill. Actual reads were requested."},
+  {id:31,name:"Consumption vs HH Data",cat:"Consumption",status:"error",detail:"HH total: 27,840 kWh. Invoice: 28,640 kWh. Variance 2.9%."},
+  {id:32,name:"Consumption vs Target",cat:"Consumption",status:"warning",detail:"Target: 26,500 kWh. Billed: 28,640 kWh (+8.1%)."},
+  {id:33,name:"Transmission Charges",cat:"Network",status:"error",detail:"Transmission charge billed: £198.75. Expected: £156.20. Overcharge: £42.55."}
+];
+var invoices=[
+  {id:'INV-20240315-001',site:'Unit 12 Industrial Estate',type:'elec',icon:'⚡',supplier:'British Gas Business',date:'15 Mar 2024',amount:'£3,842.56',errors:8,warnings:11},
+  {id:'INV-20240310-002',site:'Head Office, Manchester',type:'gas',icon:'🔥',supplier:'Corona Energy',date:'10 Mar 2024',amount:'£1,240.80',errors:3,warnings:4},
+  {id:'INV-20240308-003',site:'Warehouse B, Leeds',type:'water',icon:'💧',supplier:'Yorkshire Water',date:'08 Mar 2024',amount:'£389.20',errors:1,warnings:2},
+  {id:'INV-20240305-004',site:'Unit 12 Industrial Estate',type:'elec',icon:'⚡',supplier:'British Gas Business',date:'05 Mar 2024',amount:'£3,120.00',errors:0,warnings:3},
+  {id:'INV-20240228-005',site:'Retail Unit, Sheffield',type:'elec',icon:'⚡',supplier:'Opus Energy',date:'28 Feb 2024',amount:'£892.40',errors:0,warnings:1}
+];
+var clients=[
+  {name:'Acme Manufacturing Ltd',sector:'Manufacturing',sites:4,invoices:23,errors:12,color:'#52b043',initials:'AM',contract:'BGB-SME-HH-2024-A.pdf'},
+  {name:'NorthShield Logistics',sector:'Logistics',sites:7,invoices:41,errors:3,color:'#5b9bd5',initials:'NL',contract:'NL-Contract-2023.pdf'},
+  {name:'Greenfield Retail Group',sector:'Retail',sites:12,invoices:68,errors:0,color:'#e0a030',initials:'GR'},
+  {name:'Pinnacle Office Park',sector:'Office',sites:2,invoices:14,errors:5,color:'#e05252',initials:'PO'},
+  {name:'Castleton Hotels Ltd',sector:'Hospitality',sites:3,invoices:19,errors:1,color:'#a78bfa',initials:'CH'}
+];
+var consData=[
+  {m:'Mar 23',kwh:22100},{m:'Apr 23',kwh:20800},{m:'May 23',kwh:21500},{m:'Jun 23',kwh:23200},
+  {m:'Jul 23',kwh:24600},{m:'Aug 23',kwh:28100},{m:'Sep 23',kwh:22900},{m:'Oct 23',kwh:23800},
+  {m:'Nov 23',kwh:19200},{m:'Dec 23',kwh:24100},{m:'Jan 24',kwh:22600},{m:'Feb 24',kwh:28640}
+];
+var baseline=23450;
+var accounts=[
+  {ref:'ELEC-00234',site:'Unit 12 Industrial Estate',mpan:'1012345678901',type:'Electricity',supplier:'British Gas Business',tariff:'SME-HH-2024-A',contract:'BGB-2024-A',status:'Active'},
+  {ref:'GAS-00891',site:'Head Office, Manchester',mpan:'7412369850',type:'Gas',supplier:'Corona Energy',tariff:'I&C-GAS-2023-B',contract:'CE-2023-B',status:'Active'},
+  {ref:'WAT-00112',site:'Warehouse B, Leeds',mpan:'WTR-112-YW',type:'Water',supplier:'Yorkshire Water',tariff:'Business-Measured',contract:'YW-2022',status:'Active'},
+  {ref:'ELEC-00891',site:'Retail Unit, Sheffield',mpan:'1098765432100',type:'Electricity',supplier:'Opus Energy',tariff:'SME-HH-2022-C',contract:'OE-2022-C',status:'Active'},
+  {ref:'ELEC-00123',site:'Old Depot, Bradford',mpan:'1055544433321',type:'Electricity',supplier:'EDF Energy',tariff:'HH-Legacy-2019',contract:'—',status:'Closed'}
+];
+var contractChecks=[
+  {label:'Unit rate (p/kWh)',contract:'12.84p',billed:'13.06p',vari:'+0.22p',status:'error'},
+  {label:'Standing charge (p/day)',contract:'42.5p',billed:'42.5p',vari:'—',status:'pass'},
+  {label:'Transmission rate (p/kWh)',contract:'0.546p',billed:'0.694p',vari:'+0.148p',status:'error'},
+  {label:'CCL rate (p/kWh)',contract:'0.775p',billed:'0.637p',vari:'-0.138p',status:'error'},
+  {label:'Distribution Red band rate',contract:'£152.10',billed:'£186.40',vari:'+£34.30',status:'error'},
+  {label:'TRIAD charge',contract:'£295.00',billed:'£320.00',vari:'+£25.00',status:'warning'}
+];
+var networkLines=[
+  {type:'Transmission charge',billed:'£198.75',expected:'£156.20',vari:'+£42.55',status:'error'},
+  {type:'Distribution Red band',billed:'£186.40',expected:'£152.10',vari:'+£34.30',status:'error'},
+  {type:'Distribution Amber band',billed:'£142.10',expected:'£142.10',vari:'£0.00',status:'pass'},
+  {type:'Distribution Green band',billed:'£83.80',expected:'£83.80',vari:'£0.00',status:'pass'},
+  {type:'Reactive charge',billed:'£28.50',expected:'£0.00',vari:'+£28.50',status:'warning'},
+  {type:'TRIAD (provisional)',billed:'£320.00',expected:'£295.00',vari:'+£25.00',status:'warning'}
+];
+var catSummary=[
+  {cat:'File Integrity',total:5,errors:1,warnings:2},{cat:'Account Matching',total:5,errors:1,warnings:2},
+  {cat:'Tariff',total:3,errors:2,warnings:1},{cat:'Financial',total:6,errors:4,warnings:2},
+  {cat:'Consumption',total:5,errors:3,warnings:2},{cat:'Network',total:6,errors:3,warnings:2},
+  {cat:'Tax & Levy',total:2,errors:2,warnings:0},{cat:'Other',total:1,errors:0,warnings:1}
+];
+
+function bstat(s){
+  if(s==='error') return '<span class="badge error">&#x2717; Error</span>';
+  if(s==='warning') return '<span class="badge warning">&#x26A0; Warning</span>';
+  return '<span class="badge pass">&#x2713; Pass</span>';
+}
+
+function renderDashboard(){
+  var ri=document.getElementById('recent-inv');
+  ri.innerHTML=invoices.slice(0,4).map(function(i){
+    var badge=i.errors>0?'<span class="ec">&#x26A0; '+i.errors+' err</span>':i.warnings>0?'<span class="badge warning">'+i.warnings+' warn</span>':'<span class="badge pass">&#x2713;</span>';
+    return '<div class="ir" onclick="showPage(\'validation\',null)"><div class="ii '+i.type+'">'+i.icon+'</div><div class="in_"><div class="n">'+i.id+' — '+i.site+'</div><div class="m">'+i.supplier+' · '+i.date+'</div></div><div class="ia">'+i.amount+'</div>'+badge+'</div>';
+  }).join('');
+  var cs=document.getElementById('cat-summary');
+  cs.innerHTML=catSummary.map(function(c){
+    var p=Math.round(((c.total-c.errors-c.warnings)/c.total)*100);
+    var cls=c.errors>0?'red':c.warnings>0?'amb':'grn';
+    return '<div style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:11px;color:var(--tx)">'+c.cat+'</span><span style="font-size:10px;color:var(--tx3)">'+(c.total-c.errors-c.warnings)+'/'+c.total+'</span></div><div class="pb"><div class="pf '+cls+'" style="width:'+p+'%"></div></div></div>';
+  }).join('');
+}
+
+function renderClients(){
+  document.getElementById('client-grid').innerHTML=clients.map(function(c){
+    var err=c.errors>0?'<span style="color:var(--red);font-weight:700">&#x26A0; '+c.errors+' errors</span>':'<span style="color:var(--g)">&#x2713; No errors</span>';
+    var badge=c.errors>0?'<span class="badge error">'+c.errors+' errors</span>':'<span class="badge pass">Clean</span>';
+    var contractBadge=c.contract?'<span class="badge purple">📋 Contract loaded</span>':'<span class="badge warning">No contract</span>';
+    return '<div class="client-card" onclick="showPage(\'dashboard\',null)"><div class="cc-banner" style="background:'+c.color+'22"></div><div class="cc-body"><div class="cc-av" style="background:'+c.color+'">'+c.initials+'</div><div class="cc-name">'+c.name+'</div><div class="cc-meta">'+c.sector+' · '+c.sites+' sites · '+c.invoices+' invoices<br>'+err+'</div><div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"><span class="badge info">'+c.sites+' sites</span>'+badge+contractBadge+'</div></div></div>';
+  }).join('');
+}
+
+function renderInvoiceLibrary(){
+  document.getElementById('inv-library').innerHTML=invoices.map(function(i){
+    var e=i.errors>0?'<span class="ec">&#x26A0; '+i.errors+' errors</span>':'';
+    var w=i.warnings>0?'<span class="badge warning" style="margin-left:4px">'+i.warnings+' warn</span>':'';
+    var p=(i.errors===0&&i.warnings===0)?'<span class="badge pass">&#x2713; Pass</span>':'';
+    return '<div class="ir" onclick="showPage(\'validation\',null)"><div class="ii '+i.type+'">'+i.icon+'</div><div class="in_"><div class="n">'+i.id+' — '+i.site+'</div><div class="m">'+i.supplier+' · '+i.date+'</div></div><div class="ia">'+i.amount+'</div>'+e+w+p+'</div>';
+  }).join('');
+}
+
+function renderChecks(filter){
+  var head=document.getElementById('check-table-head');
+  var alertBox=document.getElementById('validation-alert');
+  if(filter==='passed'){
+    head.innerHTML='<tr><th>Category</th><th>Result</th><th>Coverage</th></tr>';
+    alertBox.innerHTML='<span style="font-size:14px;flex-shrink:0">✓</span><div>These checks came back clean — billed amounts matched contract, tariff, network and consumption expectations with no issues found. We don\'t list individual passed checks so as to keep our validation methodology proprietary — only flagged items are itemised.</div>';
+    var cats={};
+    checks.forEach(function(c){cats[c.cat]=cats[c.cat]||{total:0,passed:0};cats[c.cat].total++;if(c.status==='pass')cats[c.cat].passed++;});
+    document.getElementById('check-table').innerHTML=Object.keys(cats).map(function(cat){
+      var c=cats[cat];
+      var pct=Math.round((c.passed/c.total)*100);
+      return '<tr><td style="font-weight:600;color:var(--tx)">'+cat+'</td><td>'+bstat(c.passed===c.total?'pass':'warning')+'</td><td style="min-width:200px"><div style="display:flex;align-items:center;gap:10px"><div class="pb" style="flex:1"><div class="pf '+(c.passed===c.total?'grn':'amb')+'" style="width:'+pct+'%"></div></div><span style="font-size:10px;color:var(--tx3);white-space:nowrap">'+c.passed+'/'+c.total+'</span></div></td></tr>';
+    }).join('');
+    return;
+  }
+  head.innerHTML='<tr><th>#</th><th>Status</th><th>What we found</th></tr>';
+  alertBox.innerHTML='<span style="font-size:14px;flex-shrink:0">🔍</span><div>Volt IVR runs a full suite of billing, tariff, network and consumption checks in the background on every invoice. Only items requiring your attention are listed below — <strong>14 additional checks passed</strong> with no issues.</div>';
+  var rows=checks.filter(function(c){return c.status==='error'||c.status==='warning';});
+  if(filter==='errors') rows=rows.filter(function(c){return c.status==='error';});
+  else if(filter==='warnings') rows=rows.filter(function(c){return c.status==='warning';});
+  document.getElementById('check-table').innerHTML=rows.map(function(c){
+    return '<tr class="check-row '+c.status+'"><td style="font-size:10px;color:var(--tx3);font-weight:700">'+c.id+'</td><td>'+bstat(c.status)+'</td><td style="font-size:12px;color:var(--tx2);line-height:1.6;padding-top:11px;padding-bottom:11px">'+c.detail+'</td></tr>';
+  }).join('');
+}
+
+var consumptionFilter='all';
+function renderConsumption(){
+  var max=0;
+  for(var i=0;i<consData.length;i++){if(consData[i].kwh>max)max=consData[i].kwh;}
+  var rows=consData.map(function(d){
+    var pct=(d.kwh/max)*100;
+    var dev=((d.kwh-baseline)/baseline)*100;
+    var cls=Math.abs(dev)>20?'anomaly':Math.abs(dev)>12?'warnb':'normal';
+    var tcls=Math.abs(dev)>20?'error':Math.abs(dev)>12?'warning':'pass';
+    return {m:d.m,kwh:d.kwh,pct:pct,dev:dev,cls:cls,tcls:tcls};
+  });
+  var chartHtml=rows.map(function(r){
+    return '<div class="bar-wrap"><div class="bar '+r.cls+'" style="height:'+Math.round(r.pct)+'px"></div><div class="bar-label">'+r.m.split(' ')[0]+'</div></div>';
+  }).join('');
+  document.getElementById('cons-chart').innerHTML=chartHtml;
+  renderConsumptionTable(rows);
+}
+function renderConsumptionTable(rows){
+  rows=rows||(function(){
+    var max=0;for(var i=0;i<consData.length;i++){if(consData[i].kwh>max)max=consData[i].kwh;}
+    return consData.map(function(d){var dev=((d.kwh-baseline)/baseline)*100;var tcls=Math.abs(dev)>20?'error':Math.abs(dev)>12?'warning':'pass';return {m:d.m,kwh:d.kwh,dev:dev,tcls:tcls};});
+  })();
+  var filtered=rows;
+  var tag=document.getElementById('cons-filter-tag');
+  var label=document.getElementById('cons-filter-label');
+  if(consumptionFilter==='flagged'){
+    filtered=rows.filter(function(r){return r.tcls!=='pass';});
+    tag.style.display='flex';label.textContent='Anomalies only ('+filtered.length+')';
+  }else if(consumptionFilter==='largest'){
+    filtered=rows.slice().sort(function(a,b){return Math.abs(b.dev)-Math.abs(a.dev);}).slice(0,1);
+    tag.style.display='flex';label.textContent='Largest deviation';
+  }else{
+    tag.style.display='none';
+  }
+  document.getElementById('cons-table').innerHTML=filtered.map(function(r){
+    var col=r.tcls==='error'?'var(--red)':r.tcls==='warning'?'var(--amb)':'var(--g)';
+    var fw=r.tcls!=='pass'?'700':'400';
+    var sign=r.dev>0?'+':'';
+    return '<tr><td style="color:var(--tx)">'+r.m+'</td><td style="font-weight:600;color:var(--tx)">'+r.kwh.toLocaleString()+'</td><td style="color:'+col+';font-weight:'+fw+'">'+sign+r.dev.toFixed(1)+'%</td><td>'+bstat(r.tcls)+'</td></tr>';
+  }).join('');
+}
+function filterConsumption(type){
+  consumptionFilter=type;
+  renderConsumptionTable();
+  var t=document.getElementById('cons-table');
+  if(t)t.closest('.card').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+var billingFilter='all';
+function renderBilling(){
+  renderBillingLists();
+}
+function renderBillingLists(){
+  var cTag=document.getElementById('contract-filter-tag'),cLabel=document.getElementById('contract-filter-label');
+  var nTag=document.getElementById('network-filter-tag'),nLabel=document.getElementById('network-filter-label');
+  var cRows=contractChecks,nRows=networkLines;
+  var labelText='';
+  if(billingFilter==='pass'){cRows=contractChecks.filter(function(c){return c.status==='pass';});nRows=networkLines.filter(function(n){return n.status==='pass';});labelText='Passed only';}
+  else if(billingFilter==='error'){cRows=contractChecks.filter(function(c){return c.status==='error';});nRows=networkLines.filter(function(n){return n.status==='error';});labelText='Errors only';}
+  else if(billingFilter==='warning'){cRows=contractChecks.filter(function(c){return c.status==='warning';});nRows=networkLines.filter(function(n){return n.status==='warning';});labelText='Needs review';}
+  else if(billingFilter==='flagged'){cRows=contractChecks.filter(function(c){return c.status!=='pass';});nRows=networkLines.filter(function(n){return n.status!=='pass';});labelText='Errors & warnings';}
+  if(billingFilter==='all'){cTag.style.display='none';nTag.style.display='none';}
+  else{
+    cTag.style.display=cRows.length?'flex':'none';cLabel.textContent=labelText+' ('+cRows.length+')';
+    nTag.style.display=nRows.length?'flex':'none';nLabel.textContent=labelText+' ('+nRows.length+')';
+  }
+  document.getElementById('billing-contract').innerHTML=cRows.map(function(c){
+    var col=c.status==='error'?'var(--red)':c.status==='warning'?'var(--amb)':'var(--g)';
+    return '<div class="contract-item"><div style="font-size:11px;color:var(--tx)">'+c.label+'</div><div style="display:flex;align-items:center;gap:10px"><div><div style="font-size:10px;color:var(--tx3)">Contract: '+c.contract+'</div><div style="font-size:11px;font-weight:700;color:'+col+'">Billed: '+c.billed+(c.vari!='—'?' <span style="font-size:9px">'+c.vari+'</span>':'')+'</div></div>'+bstat(c.status)+'</div></div>';
+  }).join('')||'<div style="font-size:11px;color:var(--tx3);padding:8px 0">No items match this filter.</div>';
+  document.getElementById('billing-network').innerHTML=nRows.map(function(n){
+    var col=n.status==='error'?'var(--red)':n.status==='warning'?'var(--amb)':'var(--g)';
+    return '<tr><td style="color:var(--tx);font-weight:500">'+n.type+'</td><td>'+n.billed+'</td><td>'+n.expected+'</td><td style="font-weight:700;color:'+col+'">'+n.vari+'</td><td>'+bstat(n.status)+'</td></tr>';
+  }).join('');
+}
+function filterBilling(type){
+  billingFilter=type;
+  renderBillingLists();
+  var t=document.getElementById('billing-contract');
+  if(t)t.closest('.card').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function renderAccounts(){
+  document.getElementById('account-table').innerHTML=accounts.map(function(a){
+    return '<tr><td style="font-weight:700;color:var(--g)">'+a.ref+'</td><td style="color:var(--tx)">'+a.site+'</td><td style="font-family:monospace;font-size:10px">'+a.mpan+'</td><td>'+a.type+'</td><td>'+a.supplier+'</td><td><span class="badge info">'+a.tariff+'</span></td><td><span class="badge purple">'+a.contract+'</span></td><td><span class="badge '+(a.status==='Active'?'pass':'error')+'">'+a.status+'</span></td></tr>';
+  }).join('');
+}
+
+function buildReportText(){
+  var supplier=document.getElementById('reportSupplier').value||'your supplier';
+  var ref=document.getElementById('reportAccount').value||'';
+  var errors=checks.filter(function(c){return c.status==='error';});
+  var warnings=checks.filter(function(c){return c.status==='warning';});
+  var today=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  var t='';
+  t+='To: '+supplier+'\n';
+  t+='Date: '+today+'\n';
+  t+='Re: Billing dispute — '+ref+'\n\n';
+  t+='Dear Sir/Madam,\n\n';
+  t+='We have reviewed the above invoice and identified a number of discrepancies against our supply contract, applicable network charges and consumption records. We request that these are investigated, and that a corrected invoice, refund or credit is issued where an overcharge is confirmed.\n\n';
+  t+='CONFIRMED ERRORS ('+errors.length+')\n';
+  t+='These items do not match our contracted rates, meter data or billing rules and require correction:\n\n';
+  errors.forEach(function(c,i){t+=(i+1)+'. '+c.detail+'\n';});
+  if(warnings.length){
+    t+='\nITEMS REQUIRING CLARIFICATION ('+warnings.length+')\n';
+    t+='These items appear inconsistent with our records and we would appreciate confirmation or correction:\n\n';
+    warnings.forEach(function(c,i){t+=(i+1)+'. '+c.detail+'\n';});
+  }
+  t+='\nEstimated overcharge identified: £1,240\n\n';
+  t+='Please could you confirm receipt of this dispute and provide a response, including a corrected invoice and/or refund where applicable, within 10 working days.\n\n';
+  t+='Yours faithfully,\n';
+  t+='James Davies\n';
+  t+='On behalf of the account holder';
+  return t;
+}
+function openSupplierReport(){
+  document.getElementById('reportText').value=buildReportText();
+  document.getElementById('reportCopyMsg').style.display='none';
+  document.getElementById('reportModal').classList.add('open');
+}
+function closeReportModal(){document.getElementById('reportModal').classList.remove('open');}
+function refreshReport(){document.getElementById('reportText').value=buildReportText();}
+function copyReport(){
+  var ta=document.getElementById('reportText');
+  ta.select();
+  navigator.clipboard&&navigator.clipboard.writeText(ta.value);
+  document.getElementById('reportCopyMsg').style.display='block';
+  setTimeout(function(){document.getElementById('reportCopyMsg').style.display='none';},2500);
+}
+function downloadReportTxt(){
+  var blob=new Blob([document.getElementById('reportText').value],{type:'text/plain'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='VoltIVR-Dispute-Report.txt';
+  a.click();
+}
+function downloadReportPDF(){
+  var jsPDF=window.jspdf.jsPDF;
+  var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  var W=doc.internal.pageSize.getWidth();
+  doc.setFillColor(8,8,8);doc.rect(0,0,W,30,'F');
+  doc.setFillColor(82,176,67);doc.rect(0,28,W,2,'F');
+  doc.setTextColor(255,255,255);doc.setFontSize(13);doc.setFont('helvetica','bold');
+  doc.text('VOLT IVR',14,13);
+  doc.setFontSize(7.5);doc.setFont('helvetica','normal');doc.setTextColor(160,160,160);
+  doc.text('Billing dispute report — by Unitech International',14,20);
+  var lines=doc.splitTextToSize(document.getElementById('reportText').value,182);
+  var y=42;doc.setTextColor(30,30,30);doc.setFontSize(9.5);doc.setFont('courier','normal');
+  for(var i=0;i<lines.length;i++){
+    if(y>282){doc.addPage();y=20;}
+    doc.text(lines[i],14,y);
+    y+=5;
+  }
+  doc.save('VoltIVR-Dispute-Report.pdf');
+}
+
+function renderSpendStatus(){
+  var lines=contractChecks.concat(networkLines);
+  var errCount=lines.filter(function(l){return l.status==='error';}).length;
+  var warnCount=lines.filter(function(l){return l.status==='warning';}).length;
+  var el={verdict:document.getElementById('spend-verdict'),sub:document.getElementById('spend-sub'),detail:document.getElementById('spend-detail'),cta:document.getElementById('spend-cta'),bar:document.getElementById('spend-status-bar')};
+  var verdict,color,sub,detail,ctaLabel,ctaFn;
+  if(errCount>=3){
+    verdict='Overspending';color='var(--red)';
+    sub=errCount+' rate mismatches · '+warnCount+' to review';
+    detail='Multiple charges on this invoice are billed above your contracted and published network rates. Based on current findings, you are likely on unfavourable terms or being incorrectly billed against your contract. We recommend disputing these charges with your supplier and requesting a corrected invoice and refund.';
+    ctaLabel='📄 Generate Supplier Report';ctaFn='openSupplierReport()';
+  }else if(errCount>=1||warnCount>=2){
+    verdict='Elevated spend';color='var(--amb)';
+    sub=errCount+' rate mismatches · '+warnCount+' to review';
+    detail='Some charges are running above your contracted rates, though not yet at a level we would flag as clear overspending. We recommend requesting a rate review from your supplier to confirm these are being billed correctly.';
+    ctaLabel='🔎 Review billing checks';ctaFn="showPage('billing',null)";
+  }else{
+    verdict='In line with contract';color='var(--g)';
+    sub=lines.length+' contract & network checks passed';
+    detail='Your billed rates are consistent with your agreed contract and published network charges. No action is needed at this time — we\'ll keep monitoring every new invoice automatically.';
+    ctaLabel='🔎 View billing checks';ctaFn="showPage('billing',null)";
+  }
+  el.verdict.textContent=verdict;el.verdict.style.color=color;
+  el.sub.textContent=sub;
+  el.detail.textContent=detail;
+  el.cta.textContent=ctaLabel;
+  el.cta.setAttribute('onclick',ctaFn);
+  el.bar.style.background=color;
+}
+
+function exportPDF(){
+  var jsPDF=window.jspdf.jsPDF;
+  var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  var W=doc.internal.pageSize.getWidth();
+  doc.setFillColor(8,8,8);doc.rect(0,0,W,35,'F');
+  doc.setFillColor(82,176,67);doc.rect(0,33,W,2,'F');
+  doc.setTextColor(255,255,255);doc.setFontSize(14);doc.setFont('helvetica','bold');
+  doc.text('VOLT IVR',14,14);
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(160,160,160);
+  doc.text('Utility Bill Validation & Recovery — by Unitech International',14,21);
+  doc.setTextColor(20,20,20);doc.setFontSize(12);doc.setFont('helvetica','bold');
+  doc.text('Validation Report — INV-20240315-001',14,46);
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);
+  doc.text('Account: ELEC-00234  ·  British Gas Business  ·  Generated: '+new Date().toLocaleDateString('en-GB'),14,52);
+  var boxes=[{l:'ERRORS',v:'8',c:[220,82,82]},{l:'WARNINGS',v:'11',c:[224,160,48]},{l:'PASSED',v:'14',c:[82,176,67]},{l:'OVERCHARGE',v:'£1,240',c:[91,155,213]}];
+  for(var i=0;i<boxes.length;i++){var b=boxes[i];var x=14+i*47;doc.setFillColor(b.c[0],b.c[1],b.c[2]);doc.roundedRect(x,57,44,18,2,2,'F');doc.setTextColor(255,255,255);doc.setFontSize(13);doc.setFont('helvetica','bold');doc.text(b.v,x+22,67,{align:'center'});doc.setFontSize(5.5);doc.text(b.l,x+22,72,{align:'center'});}
+  var flagged=checks.filter(function(c){return c.status==='error'||c.status==='warning';});
+  var y=84;doc.setFillColor(82,176,67);doc.rect(14,y,182,7,'F');doc.setTextColor(0,0,0);doc.setFontSize(7);doc.setFont('helvetica','bold');
+  var hdrs=['#','Status','What we found'];var hpos=[16,26,50];
+  for(var i=0;i<hdrs.length;i++){doc.text(hdrs[i],hpos[i],y+5);}
+  y+=9;
+  for(var i=0;i<flagged.length;i++){
+    var c=flagged[i];
+    var lines=doc.splitTextToSize(c.detail,140);
+    var rowH=Math.max(7,lines.length*4+3);
+    if(y+rowH>272){doc.addPage();y=20;}
+    var bg=i%2===0?18:22;doc.setFillColor(bg,bg,bg);doc.rect(14,y-1,182,rowH,'F');
+    var sc=c.status==='error'?[220,82,82]:[224,160,48];
+    doc.setFillColor(sc[0],sc[1],sc[2]);doc.rect(14,y-1,2,rowH,'F');
+    doc.setTextColor(190,190,190);doc.setFontSize(6.5);doc.setFont('helvetica','normal');
+    doc.text(String(c.id),16,y+4);
+    doc.setTextColor(sc[0],sc[1],sc[2]);doc.setFont('helvetica','bold');doc.text(c.status.toUpperCase(),26,y+4);
+    doc.setTextColor(190,190,190);doc.setFont('helvetica','normal');doc.text(lines,50,y+4);
+    y+=rowH+2;
+  }
+  doc.setFillColor(8,8,8);doc.rect(0,284,210,13,'F');
+  doc.setFillColor(82,176,67);doc.rect(0,284,210,1,'F');
+  doc.setTextColor(80,80,80);doc.setFontSize(6.5);
+  doc.text('Volt IVR by Unitech International Ltd · Company No. 10611226 · Confidential',105,291,{align:'center'});
+  doc.save('VoltIVR-Report.pdf');
+}
+
+function doLogin(){
+  document.getElementById('auth').style.display='none';
+  document.getElementById('app').style.display='block';
+  renderDashboard();
+  renderSpendStatus();
+  renderClients();
+  renderChecks('flagged');
+  renderBilling();
+  renderAccounts();
+  renderInvoiceLibrary();
+  renderConsumption();
+}
+
+function showPage(id,el){
+  var pages=document.querySelectorAll('.page');
+  for(var i=0;i<pages.length;i++){pages[i].classList.remove('active');}
+  var navs=document.querySelectorAll('.ni');
+  for(var i=0;i<navs.length;i++){navs[i].classList.remove('active');}
+  document.getElementById('page-'+id).classList.add('active');
+  if(el){el.classList.add('active');}
+  else{var m=document.querySelector('.ni[onclick*="\''+id+'\'"]');if(m)m.classList.add('active');}
+}
+
+function switchTab(f,el){
+  var tabs=document.querySelectorAll('#page-validation .tab');
+  for(var i=0;i<tabs.length;i++){tabs[i].classList.remove('active');}
+  el.classList.add('active');
+  renderChecks(f);
+}
+
+function switchTabByFilter(f){
+  var idx=f==='flagged'?0:f==='errors'?1:f==='warnings'?2:3;
+  var tabs=document.querySelectorAll('#page-validation .tab');
+  for(var i=0;i<tabs.length;i++){tabs[i].classList.remove('active');}
+  if(tabs[idx])tabs[idx].classList.add('active');
+  renderChecks(f);
+  document.getElementById('page-validation').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function goToValidation(f){
+  showPage('validation',null);
+  switchTabByFilter(f);
+}
+
+function toggleDetail(id,btn){
+  var r=document.getElementById('detail-'+id);
+  var open=r.style.display!=='none';
+  r.style.display=open?'none':'table-row';
+  btn.textContent=open?'▾ Detail':'▴ Hide';
+}
+
+function handleFileSelect(e,type){showUploadProgress(e.target.files[0].name,type);}
+function handleDrop(e,type){e.preventDefault();var f=e.dataTransfer.files;if(f.length)showUploadProgress(f[0].name,type);}
+
+function showUploadProgress(name,type){
+  if(type==='contract'){
+    var cs=document.getElementById('contract-status');
+    document.getElementById('contract-msg').innerHTML='Contract <strong>'+name+'</strong> parsed. Future invoices will be validated against contract terms automatically.';
+    cs.style.display='flex';return;
+  }
+  var prog=document.getElementById('upload-progress');
+  var fill=document.getElementById('prog-fill');
+  var lbl=document.getElementById('prog-label');
+  prog.style.display='block';
+  var steps=['Parsing file structure…','Checking account references…','Running validation checks…','Checking against supply contract…','Updating consumption baseline…','Flagging billing errors…','Complete — 8 errors, 11 warnings found'];
+  var i=0;
+  var iv=setInterval(function(){
+    if(i>=steps.length){clearInterval(iv);return;}
+    fill.style.width=Math.round(((i+1)/steps.length)*100)+'%';
+    fill.className='pf '+(i<steps.length-1?'amb':'grn');
+    lbl.textContent=steps[i];i++;
+  },550);
+}
+
+var newClientContractName=null;
+function openAddClient(){document.getElementById('clientModal').classList.add('open');}
+function closeModal(){
+  document.getElementById('clientModal').classList.remove('open');
+  newClientContractName=null;
+  document.getElementById('newClientContractLabel').textContent='Drop contract or click to browse';
+}
+function handleNewClientContract(e){
+  if(!e.target.files.length) return;
+  newClientContractName=e.target.files[0].name;
+  document.getElementById('newClientContractLabel').textContent='✓ '+newClientContractName;
+}
+function addClient(){
+  var n=document.getElementById('newClientName').value||'New Client';
+  var cols=['#52b043','#5b9bd5','#e0a030','#e05252','#a78bfa'];
+  clients.push({name:n,sector:'Other',sites:1,invoices:0,errors:0,color:cols[clients.length%cols.length],initials:n.split(' ').map(function(w){return w[0];}).join('').substring(0,2).toUpperCase(),contract:newClientContractName});
+  renderClients();closeModal();
+}
+</script>
+</body>
+</html>
