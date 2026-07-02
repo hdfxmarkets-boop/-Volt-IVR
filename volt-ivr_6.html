@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Volt IVR | Unitech International</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#e8e8e8;min-height:100vh;font-size:13px}
@@ -142,6 +143,22 @@ tr:hover td{background:rgba(82,176,67,.02)}
 </style>
 </head>
 <body>
+<!--
+  TENANCY MODEL (read before wiring up a real backend):
+  This app is single-tenant per session — it represents the authenticated view for
+  ONE customer only. It starts empty; every invoice, site and consumption data point
+  shown is generated from real documents uploaded and validated in this session.
+  - There is no "switch client" or "Add Client" capability anywhere in this app, by design.
+    A customer must never be able to see or select another customer's account.
+  - The backend must resolve the tenant/account ID from the authenticated session
+    (e.g. a server-verified JWT claim), never from anything passed by the browser
+    (query param, form field, localStorage, etc.) — every invoice/site/contract/
+    validation query must be scoped to that tenant ID server-side.
+  - If Unitech staff also need a multi-client "asset manager" view to manage several
+    customers' portfolios, that is a DIFFERENT tool with its own auth/role, not a mode
+    of this app — mixing the two in one codebase is how cross-tenant data leaks happen.
+-->
+
 
 <div id="auth">
   <div class="auth-left">
@@ -190,14 +207,15 @@ tr:hover td{background:rgba(82,176,67,.02)}
         </div>
       </div>
       <div class="auth-title">Client <span>Portal</span></div>
-      <div class="auth-sub">Sign in to access Volt IVR — utility bill validation &amp; recovery</div>
+      <div class="auth-sub">Sign in to access your account — utility bill validation &amp; recovery</div>
       <label class="auth-label">Email address</label>
-      <input class="auth-input" type="email" value="client@unitechinternational.co.uk">
+      <input class="auth-input" type="email" value="you@yourcompany.com">
       <label class="auth-label">Password</label>
       <input class="auth-input" type="password" value="••••••••">
       <button class="auth-btn" onclick="doLogin()">Sign in to Volt IVR</button>
       <div class="auth-divider"><span>secure access</span></div>
       <div class="auth-demo">Demo mode — <span onclick="doLogin()">click here to enter with any credentials</span></div>
+      <div style="margin-top:14px;font-size:10px;color:var(--tx3);line-height:1.6">Your account is scoped to your own company only — Volt IVR keeps every customer's invoices, contracts and results fully isolated from one another.</div>
     </div>
   </div>
 </div>
@@ -216,11 +234,11 @@ tr:hover td{background:rgba(82,176,67,.02)}
       <span style="font-size:15px;font-weight:800;color:var(--g);letter-spacing:0.5px">Volt IVR</span>
     </div>
     <div class="topbar-divider"></div>
-    <div style="font-size:12px;font-weight:600;color:var(--tx2)">by Unitech International</div>
+    <div style="font-size:12px;font-weight:600;color:var(--tx2);display:flex;align-items:center;gap:6px">🏢 <span id="tenant-name">Your Company</span></div>
     <div class="topbar-right">
-      <div class="topbar-stat"><span class="dot" style="background:var(--red)"></span>12 errors</div>
-      <div class="topbar-stat"><span class="dot" style="background:var(--amb)"></span>28 warnings</div>
-      <div class="topbar-stat"><span class="dot" style="background:var(--g)"></span>£4,820 est. recovery</div>
+      <div class="topbar-stat"><span class="dot" style="background:var(--red)"></span><span id="topbar-errors">0</span> errors</div>
+      <div class="topbar-stat"><span class="dot" style="background:var(--amb)"></span><span id="topbar-warnings">0</span> warnings</div>
+      <div class="topbar-stat"><span class="dot" style="background:var(--g)"></span><span id="topbar-overcharge">£0.00</span> est. recovery</div>
       <div class="topbar-divider"></div>
       <div style="display:flex;align-items:center;gap:8px">
         <div class="topbar-av">JD</div>
@@ -232,8 +250,8 @@ tr:hover td{background:rgba(82,176,67,.02)}
   <div class="sidebar">
     <div class="ns">Main</div>
     <div class="ni active" onclick="showPage('dashboard',this)"><span class="ni-icon">📊</span>Dashboard</div>
-    <div class="ni" onclick="showPage('clients',this)"><span class="ni-icon">🏢</span>Client Management</div>
     <div class="ni" onclick="showPage('upload',this)"><span class="ni-icon">📤</span>Upload Documents</div>
+    <div class="ni" onclick="showPage('bulk',this)"><span class="ni-icon">🗃️</span>Bulk Reconciliation</div>
     <div class="ni" onclick="showPage('invoices',this)"><span class="ni-icon">📄</span>Invoice Library</div>
     <div class="ni" onclick="showPage('validation',this)"><span class="ni-icon">🔍</span>Validation Results <span class="notif"></span></div>
     <div class="ns">Analysis</div>
@@ -262,7 +280,7 @@ tr:hover td{background:rgba(82,176,67,.02)}
   <div class="main">
 
     <div id="page-dashboard" class="page active">
-      <div class="page-banner energy"><div class="page-banner-inner"><h2>Dashboard</h2><p>Utility billing validation overview</p></div></div>
+      <div class="page-banner energy"><div class="page-banner-inner"><h2>Dashboard</h2><p>Your utility billing validation overview</p></div></div>
       <div class="card" id="spend-status-card" style="margin-bottom:18px;position:relative;overflow:hidden">
         <div style="position:absolute;top:0;left:0;right:0;height:3px" id="spend-status-bar"></div>
         <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
@@ -276,84 +294,136 @@ tr:hover td{background:rgba(82,176,67,.02)}
         </div>
       </div>
       <div class="g4">
-        <div class="sc red clickable" onclick="goToValidation('errors')"><div class="sl">Critical Errors</div><div class="sv">12</div><div class="ss">Across 5 invoices →</div></div>
-        <div class="sc amb clickable" onclick="goToValidation('warnings')"><div class="sl">Warnings</div><div class="sv">28</div><div class="ss">Require review →</div></div>
-        <div class="sc grn clickable" onclick="goToValidation('passed')"><div class="sl">Checks Passed</div><div class="sv">187</div><div class="ss">This month →</div></div>
-        <div class="sc blu clickable" onclick="goToValidation('flagged')"><div class="sl">Est. Overcharges</div><div class="sv">£4,820</div><div class="ss">Pending recovery →</div></div>
+        <div class="sc red clickable" onclick="goToValidation('errors')"><div class="sl">Critical Errors</div><div class="sv" id="dash-errors">0</div><div class="ss">Across all invoices →</div></div>
+        <div class="sc amb clickable" onclick="goToValidation('warnings')"><div class="sl">Warnings</div><div class="sv" id="dash-warnings">0</div><div class="ss">Require review →</div></div>
+        <div class="sc grn clickable" onclick="goToValidation('passed')"><div class="sl">Checks Passed</div><div class="sv" id="dash-passed">0</div><div class="ss">All time →</div></div>
+        <div class="sc blu clickable" onclick="goToValidation('flagged')"><div class="sl">Est. Overcharges</div><div class="sv" id="dash-overcharge">£0.00</div><div class="ss">Pending recovery →</div></div>
       </div>
       <div class="g2">
         <div class="card"><div class="hr"><div class="sh">Recent invoices</div><button class="btn btn-o" style="font-size:10px;padding:4px 10px" onclick="showPage('invoices',null)">View all</button></div><div id="recent-inv"></div></div>
         <div class="card"><div class="sh" style="margin-bottom:14px">Check category summary</div><div id="cat-summary"></div></div>
       </div>
-      <div class="alert error"><span style="font-size:14px;flex-shrink:0">🚨</span><div><strong>High priority:</strong> 3 invoices flagged with MPAN mismatch and incorrect CCL rates — estimated overcharge <strong>£2,340</strong>. <a href="#" onclick="showPage('validation',null);return false" style="color:var(--g);font-weight:700">Review now →</a></div></div>
-    </div>
-
-    <div id="page-clients" class="page">
-      <div class="page-banner solar"><div class="page-banner-inner"><h2>Client Management</h2><p>Manage client portfolios, sites and validation status</p></div></div>
-      <div class="hr">
-        <input type="text" placeholder="Search clients…" style="padding:7px 11px;background:#141414;border:1px solid var(--bdr2);border-radius:7px;font-size:12px;color:var(--tx);outline:none;width:200px">
-        <button class="btn btn-g" onclick="openAddClient()">+ Add Client</button>
-      </div>
-      <div id="client-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"></div>
+      <div id="dash-alert"></div>
     </div>
 
     <div id="page-upload" class="page">
-      <div class="page-banner street"><div class="page-banner-inner"><h2>Upload Documents</h2><p>Upload utility invoices and supply contracts for automated validation</p></div></div>
+      <div class="page-banner street"><div class="page-banner-inner"><h2>Upload Documents</h2><p>Upload a real invoice and supply contract — Volt IVR extracts the numbers and calculates against them</p></div></div>
+      <div class="alert info" style="margin-bottom:16px"><span style="font-size:14px;flex-shrink:0">🧪</span><div><strong>Real calculation mode.</strong> Upload an actual invoice PDF below — Volt IVR reads the text, extracts the key figures into the form on the right, and asks you to confirm them before running any calculation. Nothing is calculated from guessed or hardcoded numbers.</div></div>
       <div class="g2">
         <div>
           <div class="card" style="margin-bottom:16px">
             <div class="sh" style="margin-bottom:14px">📄 Invoice upload</div>
-            <div class="uz" onclick="document.getElementById('fileInput').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event,'invoice')">
+            <div class="uz" id="invoice-dropzone" onclick="document.getElementById('fileInput').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event,'invoice')">
               <div style="font-size:34px;margin-bottom:10px">📂</div>
-              <div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:5px">Drop invoices or click to browse</div>
-              <div style="font-size:11px;color:var(--tx2)">PDF, EDI, CSV, XML supported</div>
-              <div style="display:flex;gap:6px;justify-content:center;margin-top:10px"><span class="tpill">PDF</span><span class="tpill">EDI</span><span class="tpill">CSV</span><span class="tpill">XML</span></div>
+              <div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:5px">Drop invoice PDF or click to browse</div>
+              <div style="font-size:11px;color:var(--tx2)">PDF (text-based, not scanned) works best</div>
+              <div style="display:flex;gap:6px;justify-content:center;margin-top:10px"><span class="tpill">PDF</span></div>
             </div>
-            <input type="file" id="fileInput" multiple accept=".pdf,.edi,.csv,.xml" style="display:none" onchange="handleFileSelect(event,'invoice')">
+            <input type="file" id="fileInput" accept=".pdf" style="display:none" onchange="handleFileSelect(event,'invoice')">
             <div id="upload-progress" style="display:none;margin-top:14px">
-              <div style="font-size:11px;font-weight:700;margin-bottom:7px;color:var(--g)">Processing invoice…</div>
+              <div style="font-size:11px;font-weight:700;margin-bottom:7px;color:var(--g)" id="prog-title">Processing invoice…</div>
               <div class="pb"><div class="pf amb" id="prog-fill" style="width:0%"></div></div>
               <div id="prog-label" style="font-size:10px;color:var(--tx3);margin-top:5px">Initialising…</div>
             </div>
+            <div id="invoice-extract-status" style="display:none;margin-top:12px" class="alert info"><span style="font-size:14px;flex-shrink:0">✅</span><div id="invoice-extract-msg"></div></div>
+            <details id="invoice-raw-wrap" style="display:none;margin-top:10px">
+              <summary style="cursor:pointer;font-size:11px;color:var(--tx2)">View extracted PDF text</summary>
+              <textarea id="invoice-raw-text" readonly style="width:100%;min-height:140px;margin-top:8px;padding:10px;background:#141414;border:1px solid var(--bdr2);border-radius:7px;font-size:10.5px;color:var(--tx2);font-family:'SF Mono',Menlo,monospace;line-height:1.6"></textarea>
+            </details>
           </div>
           <div class="card">
             <div class="sh" style="margin-bottom:6px">📋 Supply contract upload</div>
-            <div style="font-size:11px;color:var(--tx2);margin-bottom:14px;line-height:1.7">Upload your supply contract to extract rates, capacities and tariff terms. All future invoices will be validated against these automatically.</div>
+            <div style="font-size:11px;color:var(--tx2);margin-bottom:14px;line-height:1.7">Upload the supply contract to extract agreed rates and terms. This invoice's figures will be checked against them.</div>
             <div class="uz" style="padding:22px" onclick="document.getElementById('contractInput').click()">
               <div style="font-size:26px;margin-bottom:8px">📋</div>
-              <div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:4px">Drop contract or click to browse</div>
-              <div style="font-size:11px;color:var(--tx2)">PDF or CSV</div>
-              <div style="display:flex;gap:6px;justify-content:center;margin-top:8px"><span class="tpill">PDF</span><span class="tpill">CSV</span><span class="tpill">XLSX</span></div>
+              <div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:4px">Drop contract PDF or click to browse</div>
+              <div style="font-size:11px;color:var(--tx2)">PDF (text-based, not scanned)</div>
+              <div style="display:flex;gap:6px;justify-content:center;margin-top:8px"><span class="tpill">PDF</span></div>
             </div>
-            <input type="file" id="contractInput" accept=".pdf,.csv,.xlsx" style="display:none" onchange="handleFileSelect(event,'contract')">
+            <input type="file" id="contractInput" accept=".pdf" style="display:none" onchange="handleFileSelect(event,'contract')">
             <div id="contract-status" style="display:none;margin-top:12px" class="alert info">
               <span style="font-size:14px;flex-shrink:0">✅</span><div id="contract-msg"></div>
+            </div>
+            <details id="contract-raw-wrap" style="display:none;margin-top:10px">
+              <summary style="cursor:pointer;font-size:11px;color:var(--tx2)">View extracted PDF text</summary>
+              <textarea id="contract-raw-text" readonly style="width:100%;min-height:120px;margin-top:8px;padding:10px;background:#141414;border:1px solid var(--bdr2);border-radius:7px;font-size:10.5px;color:var(--tx2);font-family:'SF Mono',Menlo,monospace;line-height:1.6"></textarea>
+            </details>
+            <div class="fst" style="margin-top:16px">Contract terms (confirm or enter manually)</div>
+            <div style="font-size:10px;color:var(--tx3);margin-bottom:8px">Leave blank to skip contract-comparison checks and run billing/tax checks only.</div>
+            <div class="fg">
+              <div class="fgrp"><label>Contract unit rate (p/kWh)</label><input type="number" step="0.001" id="c-unitrate" placeholder="e.g. 12.84"></div>
+              <div class="fgrp"><label>Contract standing charge (p/day)</label><input type="number" step="0.001" id="c-standing" placeholder="e.g. 42.50"></div>
+              <div class="fgrp"><label>Contract start date</label><input type="date" id="c-start"></div>
+              <div class="fgrp"><label>Contract end date</label><input type="date" id="c-end"></div>
             </div>
           </div>
         </div>
         <div class="card">
-          <div class="sh" style="margin-bottom:4px">📝 Manual entry</div>
+          <div class="sh" style="margin-bottom:4px">📝 Confirm figures &amp; run</div>
+          <div style="font-size:10px;color:var(--tx3);margin-bottom:10px">Fields auto-fill from the uploaded PDF where Volt IVR can find them confidently. Check every value against the invoice before running — these numbers drive the calculation. VAT rate defaults to 20% (standard) unless a reduced/zero rate was detected; CCL exempt and "other charges" (capacity/network/agent/MOP fees) default to none unless found on the invoice — review both before running.</div>
           <div class="fst">Account details</div>
           <div class="fg">
-            <div class="fgrp"><label>Account ref</label><input type="text" value="ELEC-00234"></div>
-            <div class="fgrp"><label>MPAN / MPRN</label><input type="text" value="1012345678901"></div>
-            <div class="fgrp"><label>Utility type</label><select><option>Electricity</option><option>Gas</option><option>Water</option></select></div>
-            <div class="fgrp"><label>Supplier</label><input type="text" value="British Gas Business"></div>
+            <div class="fgrp"><label>Account ref</label><input type="text" id="f-acctref" placeholder="e.g. ELEC-00234"></div>
+            <div class="fgrp"><label>Supply address / site name</label><input type="text" id="f-siteaddress" placeholder="e.g. 100 Suffolk Street, Birmingham, B1 1FJ"></div>
+            <div class="fgrp"><label>MPAN / MPRN</label><input type="text" id="f-mpan" placeholder="e.g. 1012345678901"></div>
+            <div class="fgrp"><label>Utility type</label><select id="f-utype"><option>Electricity</option><option>Gas</option><option>Water</option></select></div>
+            <div class="fgrp"><label>Supplier</label><input type="text" id="f-supplier" placeholder="e.g. British Gas Business"></div>
           </div>
           <div class="fst">Invoice details</div>
           <div class="fg">
-            <div class="fgrp"><label>Invoice number</label><input type="text" value="INV-20240315-001"></div>
-            <div class="fgrp"><label>Invoice date</label><input type="date" value="2024-03-15"></div>
-            <div class="fgrp"><label>Total cost (£)</label><input type="number" step="0.01" value="3842.56"></div>
-            <div class="fgrp"><label>Total VAT (£)</label><input type="number" step="0.01" value="768.51"></div>
-            <div class="fgrp"><label>Total kWh</label><input type="number" value="28640"></div>
-            <div class="fgrp"><label>CCL charge (£)</label><input type="number" step="0.01" value="182.50"></div>
+            <div class="fgrp"><label>Invoice number</label><input type="text" id="f-invnum" placeholder="e.g. INV-20240315-001"></div>
+            <div class="fgrp"><label>Invoice date</label><input type="date" id="f-invdate"></div>
+            <div class="fgrp"><label>Billing period start</label><input type="date" id="f-pstart"></div>
+            <div class="fgrp"><label>Billing period end</label><input type="date" id="f-pend"></div>
+            <div class="fgrp"><label>Total kWh consumed</label><input type="number" step="0.01" id="f-kwh" placeholder="e.g. 28640"></div>
+            <div class="fgrp"><label>Unit rate billed (p/kWh)</label><input type="number" step="0.001" id="f-unitrate" placeholder="e.g. 13.06"></div>
+            <div class="fgrp"><label>Standing charge billed (p/day)</label><input type="number" step="0.001" id="f-standing" placeholder="e.g. 42.50"></div>
+            <div class="fgrp"><label>CCL charge (£)</label><input type="number" step="0.01" id="f-ccl" placeholder="e.g. 182.50"></div>
+            <div class="fgrp"><label><input type="checkbox" id="f-cclexempt" style="width:auto;margin-right:5px;vertical-align:middle"> CCL exempt / relief declared</label></div>
+            <div class="fgrp"><label>VAT rate applied (%)</label><input type="number" step="0.01" id="f-vatrate" placeholder="e.g. 20" value="20"></div>
+            <div class="fgrp"><label>Total VAT (£)</label><input type="number" step="0.01" id="f-vat" placeholder="e.g. 768.51"></div>
+            <div class="fgrp"><label>Other charges not itemised above (£)</label><input type="number" step="0.01" id="f-other" placeholder="e.g. 226.03 (capacity, network, agent, MOP fees)"></div>
+            <div class="fgrp"><label>Government energy relief credit (£)</label><input type="number" step="0.01" id="f-govrelief" placeholder="e.g. 7577.79 (Energy Bill Relief Scheme etc.)"></div>
+            <div class="fgrp"><label>Total cost billed (£)</label><input type="number" step="0.01" id="f-total" placeholder="e.g. 3842.56"></div>
           </div>
+          <div id="run-validation-error" style="display:none;margin-bottom:10px" class="alert error"><span style="font-size:14px;flex-shrink:0">⚠</span><div id="run-validation-error-msg"></div></div>
           <div style="display:flex;gap:10px;margin-top:8px">
-            <button class="btn btn-g" onclick="showPage('validation',null)">▶ Run Validation</button>
-            <button class="btn btn-o">Clear</button>
+            <button class="btn btn-g" onclick="runRealValidation()">▶ Run Validation</button>
+            <button class="btn btn-o" onclick="clearUploadForm()">Clear</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div id="page-bulk" class="page">
+      <div class="page-banner solar"><div class="page-banner-inner"><h2>Bulk Reconciliation</h2><p>Upload a batch of invoices — Volt IVR extracts, validates and orders every one chronologically</p></div></div>
+      <div class="alert info"><span style="font-size:14px;flex-shrink:0">🗃️</span><div>Each file is read and validated the same way as a single upload, using whatever supply contract is currently loaded on the Upload Documents page for contract-rate checks. Because there's no per-invoice confirm step here, always spot-check a few results against the source PDFs — anything Volt IVR couldn't confidently extract is flagged for manual review rather than guessed.</div></div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="sh" style="margin-bottom:14px">📥 Bulk invoice upload</div>
+        <div class="uz" id="bulk-dropzone" onclick="document.getElementById('bulkFileInput').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleBulkDrop(event)">
+          <div style="font-size:34px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:5px">Drop multiple invoice PDFs or click to browse</div>
+          <div style="font-size:11px;color:var(--tx2)">Select as many files as you like — each is processed and reconciled automatically</div>
+          <div style="display:flex;gap:6px;justify-content:center;margin-top:10px"><span class="tpill">PDF</span></div>
+        </div>
+        <input type="file" id="bulkFileInput" accept=".pdf" multiple style="display:none" onchange="handleBulkFileSelect(event)">
+        <div id="bulk-progress" style="display:none;margin-top:14px">
+          <div style="font-size:11px;font-weight:700;margin-bottom:7px;color:var(--g)" id="bulk-prog-title">Processing batch…</div>
+          <div class="pb"><div class="pf amb" id="bulk-prog-fill" style="width:0%"></div></div>
+          <div id="bulk-prog-label" style="font-size:10px;color:var(--tx3);margin-top:5px">Initialising…</div>
+        </div>
+      </div>
+      <div id="bulk-recon-alerts"></div>
+      <div id="bulk-summary-cards" style="display:none" class="g4">
+        <div class="sc blu clickable" onclick="filterBulk('all')"><div class="sl">Invoices processed</div><div class="sv" id="bulk-stat-count">0</div></div>
+        <div class="sc red clickable" onclick="filterBulk('review')"><div class="sl">Need manual review</div><div class="sv" id="bulk-stat-review">0</div></div>
+        <div class="sc amb clickable" onclick="filterBulk('issues')"><div class="sl">Total errors + warnings</div><div class="sv" id="bulk-stat-issues">0</div></div>
+        <div class="sc grn clickable" onclick="filterBulk('overcharge')"><div class="sl">Total est. recovery</div><div class="sv" id="bulk-stat-recovery">£0.00</div></div>
+      </div>
+      <div class="card" id="bulk-results-card" style="display:none">
+        <div class="hr"><div class="sh">Batch results — ordered by billing period</div><div style="display:flex;align-items:center;gap:10px"><div id="bulk-filter-tag" style="display:none;align-items:center;gap:6px;font-size:10px"><span class="badge info" id="bulk-filter-label"></span> <span style="color:var(--g);cursor:pointer;font-weight:700" onclick="filterBulk('all')">Clear ✕</span></div><div style="font-size:10px;color:var(--tx3)">Click a row for full detail</div></div></div>
+        <table><thead><tr><th>Period</th><th>Invoice #</th><th>Supplier</th><th>kWh</th><th>Total billed</th><th>Errors</th><th>Warnings</th><th>Overcharge</th><th>Status</th></tr></thead>
+        <tbody id="bulk-results-table"></tbody></table>
       </div>
     </div>
 
@@ -370,24 +440,25 @@ tr:hover td{background:rgba(82,176,67,.02)}
     </div>
 
     <div id="page-validation" class="page">
+      <div id="validation-real-banner" style="display:none" class="alert info"><span style="font-size:14px;flex-shrink:0">🧮</span><div>These results are calculated from the figures you confirmed on the Upload Documents page — not demo data.</div></div>
       <div class="hr">
-        <div><div class="pt">Validation Results</div><div class="ps">INV-20240315-001 | ELEC-00234 | British Gas Business</div></div>
+        <div><div class="pt">Validation Results</div><div class="ps" id="validation-subtitle">No invoice validated yet — go to Upload Documents</div></div>
         <div style="display:flex;gap:10px">
           <button class="btn btn-o" onclick="exportPDF()">⬇ Export PDF</button>
           <button class="btn btn-g" onclick="openSupplierReport()">📄 Generate Supplier Report</button>
         </div>
       </div>
       <div class="g4" style="margin-bottom:16px">
-        <div class="sc red clickable" onclick="switchTabByFilter('errors')"><div class="sl">Errors</div><div class="sv">8</div></div>
-        <div class="sc amb clickable" onclick="switchTabByFilter('warnings')"><div class="sl">Warnings</div><div class="sv">11</div></div>
-        <div class="sc grn clickable" onclick="switchTabByFilter('passed')"><div class="sl">Passed</div><div class="sv">14</div></div>
-        <div class="sc blu clickable" onclick="switchTabByFilter('flagged')"><div class="sl">Est. Overcharge</div><div class="sv">£1,240</div></div>
+        <div class="sc red clickable" onclick="switchTabByFilter('errors')"><div class="sl">Errors</div><div class="sv" id="stat-errors">0</div></div>
+        <div class="sc amb clickable" onclick="switchTabByFilter('warnings')"><div class="sl">Warnings</div><div class="sv" id="stat-warnings">0</div></div>
+        <div class="sc grn clickable" onclick="switchTabByFilter('passed')"><div class="sl">Passed</div><div class="sv" id="stat-passed">0</div></div>
+        <div class="sc blu clickable" onclick="switchTabByFilter('flagged')"><div class="sl">Est. Overcharge</div><div class="sv" id="stat-overcharge">£0.00</div></div>
       </div>
       <div class="tabs">
-        <div class="tab active" onclick="switchTab('flagged',this)">Issues found (19)</div>
-        <div class="tab" onclick="switchTab('errors',this)">Errors (8)</div>
-        <div class="tab" onclick="switchTab('warnings',this)">Warnings (11)</div>
-        <div class="tab" onclick="switchTab('passed',this)">Passed (14)</div>
+        <div class="tab active" onclick="switchTab('flagged',this)">Issues found (<span id="tab-flagged-n">0</span>)</div>
+        <div class="tab" onclick="switchTab('errors',this)">Errors (<span id="tab-errors-n">0</span>)</div>
+        <div class="tab" onclick="switchTab('warnings',this)">Warnings (<span id="tab-warnings-n">0</span>)</div>
+        <div class="tab" onclick="switchTab('passed',this)">Passed (<span id="tab-passed-n">0</span>)</div>
       </div>
       <div class="alert info" style="margin-bottom:16px" id="validation-alert"><span style="font-size:14px;flex-shrink:0">🔍</span><div>Volt IVR runs a full suite of billing, tariff, network and consumption checks in the background on every invoice. Only items requiring your attention are listed below — <strong>14 additional checks passed</strong> with no issues.</div></div>
       <div class="card" style="padding:0;overflow:hidden">
@@ -399,10 +470,10 @@ tr:hover td{background:rgba(82,176,67,.02)}
     <div id="page-consumption" class="page">
       <div class="page-banner energy"><div class="page-banner-inner"><h2>Consumption Profile</h2><p>Site consumption baseline, anomaly detection and trend analysis</p></div></div>
       <div class="g4" style="margin-bottom:16px">
-        <div class="sc grn clickable" onclick="filterConsumption('all')"><div class="sl">Baseline avg/month</div><div class="sv">23,450</div><div class="ss">kWh (12-month) →</div></div>
-        <div class="sc red clickable" onclick="filterConsumption('flagged')"><div class="sl">Anomalies detected</div><div class="sv">3</div><div class="ss">Last 12 months →</div></div>
-        <div class="sc amb clickable" onclick="filterConsumption('largest')"><div class="sl">Largest deviation</div><div class="sv">+22.1%</div><div class="ss">Feb 2024 →</div></div>
-        <div class="sc blu clickable" onclick="filterConsumption('all')"><div class="sl">YoY change</div><div class="sv">+8.2%</div><div class="ss">vs prior year avg →</div></div>
+        <div class="sc grn clickable" onclick="filterConsumption('all')"><div class="sl">Baseline avg/month</div><div class="sv" id="cons-stat-baseline">—</div><div class="ss" id="cons-stat-baseline-sub">No data yet →</div></div>
+        <div class="sc red clickable" onclick="filterConsumption('flagged')"><div class="sl">Anomalies detected</div><div class="sv" id="cons-stat-anomalies">0</div><div class="ss" id="cons-stat-anomalies-sub">No data yet →</div></div>
+        <div class="sc amb clickable" onclick="filterConsumption('largest')"><div class="sl">Largest deviation</div><div class="sv" id="cons-stat-largest">—</div><div class="ss" id="cons-stat-largest-sub">No data yet →</div></div>
+        <div class="sc blu clickable" onclick="filterConsumption('all')"><div class="sl">YoY change</div><div class="sv" id="cons-stat-yoy">—</div><div class="ss" id="cons-stat-yoy-sub">Not enough data →</div></div>
       </div>
       <div class="g2">
         <div class="card">
@@ -422,12 +493,12 @@ tr:hover td{background:rgba(82,176,67,.02)}
         <div><div class="pt">Billing Checks</div><div class="ps">Your invoices checked against contract rates, network charges and industry billing rules</div></div>
         <button class="btn btn-g" onclick="exportPDF()">⬇ Export Report</button>
       </div>
-      <div class="alert info"><span style="font-size:14px;flex-shrink:0">📋</span><div>Contract loaded: <strong>BGB-SME-HH-2024-A.pdf</strong> — British Gas Business · 01 Jan 2024–31 Dec 2024</div></div>
+      <div class="alert info" id="billing-contract-alert" style="display:none"></div>
       <div class="g4" style="margin-bottom:18px">
-        <div class="sc grn clickable" onclick="filterBilling('pass')"><div class="sl">Checks passed</div><div class="sv">13</div></div>
-        <div class="sc red clickable" onclick="filterBilling('error')"><div class="sl">Errors found</div><div class="sv">6</div></div>
-        <div class="sc amb clickable" onclick="filterBilling('warning')"><div class="sl">Needs review</div><div class="sv">5</div></div>
-        <div class="sc blu clickable" onclick="filterBilling('flagged')"><div class="sl">Est. overcharge</div><div class="sv">£1,236</div></div>
+        <div class="sc grn clickable" onclick="filterBilling('pass')"><div class="sl">Checks passed</div><div class="sv" id="billing-passed">0</div></div>
+        <div class="sc red clickable" onclick="filterBilling('error')"><div class="sl">Errors found</div><div class="sv" id="billing-errors">0</div></div>
+        <div class="sc amb clickable" onclick="filterBilling('warning')"><div class="sl">Needs review</div><div class="sv" id="billing-warnings">0</div></div>
+        <div class="sc blu clickable" onclick="filterBilling('flagged')"><div class="sl">Est. overcharge</div><div class="sv" id="billing-overcharge">£0.00</div></div>
       </div>
       <div class="card" style="margin-bottom:16px">
         <div class="hr" style="margin-bottom:4px"><div class="sh">Contract rate checks</div><div id="contract-filter-tag" style="display:none;align-items:center;gap:6px;font-size:10px"><span class="badge info" id="contract-filter-label"></span> <span style="color:var(--g);cursor:pointer;font-weight:700" onclick="filterBilling('all')">Clear ✕</span></div></div>
@@ -454,8 +525,14 @@ tr:hover td{background:rgba(82,176,67,.02)}
     </div>
 
     <div id="page-settings" class="page">
-      <div class="pt">Settings</div><div class="ps">Configure validation thresholds and alert preferences</div>
+      <div class="pt">Settings</div><div class="ps">Configure your account, validation thresholds and alert preferences</div>
       <div class="g2">
+        <div class="card">
+          <div class="sh" style="margin-bottom:14px">🏢 Account details</div>
+          <div class="fgrp"><label>Company name</label><input type="text" id="settings-company-name" placeholder="Enter your company name" oninput="document.getElementById('tenant-name').textContent=this.value||'Your Company'"></div>
+          <div style="font-size:10px;color:var(--tx3);margin-top:-4px;margin-bottom:10px">Shown in the top bar. In production this comes from your account record, not a form field.</div>
+          <button class="btn btn-g">Save Account Details</button>
+        </div>
         <div class="card">
           <div class="sh" style="margin-bottom:14px">🎚️ Validation thresholds</div>
           <div class="fgrp"><label>Exceptional consumption threshold (%)</label><input type="number" value="20"></div>
@@ -466,7 +543,7 @@ tr:hover td{background:rgba(82,176,67,.02)}
         </div>
         <div class="card">
           <div class="sh" style="margin-bottom:14px">🔔 Alerts</div>
-          <div class="fgrp"><label>Alert email</label><input type="email" value="client@unitechinternational.co.uk"></div>
+          <div class="fgrp"><label>Alert email</label><input type="email" id="settings-alert-email" placeholder="you@yourcompany.com"></div>
           <div class="fgrp"><label>Alert on</label><select><option>Errors only</option><option>Errors and warnings</option><option>All results</option></select></div>
           <div class="fgrp"><label>Report frequency</label><select><option>Each upload</option><option>Daily digest</option><option>Weekly summary</option></select></div>
           <button class="btn btn-g" style="margin-top:8px">Save Notifications</button>
@@ -477,36 +554,12 @@ tr:hover td{background:rgba(82,176,67,.02)}
   </div>
 </div>
 
-<div class="modal-overlay" id="clientModal">
-  <div class="modal">
-    <h3>Add new client</h3>
-    <div class="fg">
-      <div class="fgrp"><label>Client name</label><input type="text" id="newClientName" placeholder="e.g. Acme Manufacturing Ltd"></div>
-      <div class="fgrp"><label>Sector</label><select><option>Manufacturing</option><option>Retail</option><option>Logistics</option><option>Office</option><option>Housing Associations</option></select></div>
-      <div class="fgrp"><label>Contact email</label><input type="email" placeholder="email@company.com"></div>
-      <div class="fgrp"><label>Number of sites</label><input type="number" value="1"></div>
-    </div>
-    <div class="fst" style="margin-top:2px">Supply contract (optional)</div>
-    <div style="font-size:11px;color:var(--tx3);margin-bottom:10px;line-height:1.6">Upload the customer's supply contract now to enable contract rate validation from their first invoice. Can also be added later from Upload Documents.</div>
-    <div class="uz" style="padding:18px" onclick="document.getElementById('newClientContract').click()">
-      <div style="font-size:22px;margin-bottom:6px">📋</div>
-      <div style="font-size:12px;font-weight:700;color:var(--tx);margin-bottom:2px" id="newClientContractLabel">Drop contract or click to browse</div>
-      <div style="font-size:10px;color:var(--tx2)">PDF, CSV or XLSX</div>
-    </div>
-    <input type="file" id="newClientContract" accept=".pdf,.csv,.xlsx" style="display:none" onchange="handleNewClientContract(event)">
-    <div class="modal-footer">
-      <button class="btn btn-o" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-g" onclick="addClient()">Add Client</button>
-    </div>
-  </div>
-</div>
-
 <div class="modal-overlay" id="reportModal">
   <div class="modal" style="width:640px">
     <h3>📄 Supplier dispute report</h3>
     <div style="font-size:11px;color:var(--tx3);margin-bottom:14px;line-height:1.6">A ready-to-send summary of the errors found on this invoice, addressed to your supplier. Edit as needed, then copy or download to send.</div>
-    <div class="fgrp"><label>Recipient (supplier)</label><input type="text" id="reportSupplier" value="British Gas Business" onchange="refreshReport()"></div>
-    <div class="fgrp"><label>Your reference</label><input type="text" id="reportAccount" value="ELEC-00234 · Invoice INV-20240315-001" onchange="refreshReport()"></div>
+    <div class="fgrp"><label>Recipient (supplier)</label><input type="text" id="reportSupplier" value="" onchange="refreshReport()"></div>
+    <div class="fgrp"><label>Your reference</label><input type="text" id="reportAccount" value="" onchange="refreshReport()"></div>
     <textarea id="reportText" style="width:100%;min-height:340px;padding:14px;background:#141414;border:1px solid var(--bdr2);border-radius:8px;font-size:11.5px;color:var(--tx);font-family:'SF Mono',Menlo,monospace;line-height:1.7;resize:vertical;outline:none"></textarea>
     <div id="reportCopyMsg" style="display:none;font-size:11px;color:var(--g);margin-top:8px">✓ Copied to clipboard</div>
     <div class="modal-footer">
@@ -519,90 +572,15 @@ tr:hover td{background:rgba(82,176,67,.02)}
 </div>
 
 <script>
-var checks=[
-  {id:1,name:"EDI File Validity",cat:"File Integrity",status:"error",detail:"File sequence gap: expected seq 0042, received 0044."},
-  {id:2,name:"Account reference exists",cat:"Account Matching",status:"pass",detail:"Account reference ELEC-00234 found. MPAN confirmed."},
-  {id:3,name:"MPAN Mismatch",cat:"Account Matching",status:"error",detail:"MPAN on bill: 1012345678902. Account: 1012345678901. Billing risk: £3,842.56."},
-  {id:4,name:"Supplier Match",cat:"Account Matching",status:"pass",detail:"Supplier matches account record."},
-  {id:5,name:"Historic Supplier Match",cat:"Account Matching",status:"warning",detail:"Previous supplier EDF Energy active until 2023-11-30."},
-  {id:6,name:"Account Closed",cat:"Account Matching",status:"pass",detail:"Account ELEC-00234 is active."},
-  {id:7,name:"Tariff Linking",cat:"Tariff",status:"error",detail:"Unexpected items in bill not in tariff definition SME-HH-2024-A."},
-  {id:8,name:"Total Cost Calculation",cat:"Financial",status:"error",detail:"Sum of line items: £3,791.44. Billed: £3,842.56. Discrepancy: £51.12."},
-  {id:9,name:"Total VAT Calculation",cat:"Financial",status:"error",detail:"VAT sum: £758.29. Billed VAT: £768.51. Discrepancy: £10.22."},
-  {id:10,name:"Tariff Check",cat:"Tariff",status:"warning",detail:"Recalculated cost: £3,719.00. Billed: £3,842.56. Variance 3.3%."},
-  {id:11,name:"Exceptional Consumption",cat:"Consumption",status:"error",detail:"Current: 28,640 kWh. Previous: 21,200 kWh (+35.1%). Exceeds threshold."},
-  {id:12,name:"Exceptional Total Cost",cat:"Financial",status:"error",detail:"Current: £3,842.56. Previous: £2,980.00 (+28.9%). Exceeds threshold."},
-  {id:13,name:"Withdrawn/Cancelled Match",cat:"File Integrity",status:"pass",detail:"No withdrawn bills in this file."},
-  {id:14,name:"Bill Paid",cat:"Financial",status:"pass",detail:"No duplicate invoice found."},
-  {id:15,name:"Period Paid",cat:"Financial",status:"warning",detail:"Previous Feb 2024 invoice exists. Possible amended invoice."},
-  {id:16,name:"Multiple Dates",cat:"File Integrity",status:"warning",detail:"Two dates in bill. Possible combined billing."},
-  {id:17,name:"Multiple Bills",cat:"File Integrity",status:"pass",detail:"Only one invoice for ELEC-00234 in this file."},
-  {id:18,name:"Credits/Arrears Present",cat:"Financial",status:"warning",detail:"Arrears element £142.80 present."},
-  {id:19,name:"Meter Readings",cat:"Consumption",status:"error",detail:"Read continuity error: gap of 5 kWh. Meter serial mismatch."},
-  {id:20,name:"Network Charges",cat:"Network",status:"warning",detail:"Reactive charge (£28.50) not in tariff definition."},
-  {id:21,name:"Network Tariff Linking",cat:"Network",status:"warning",detail:"3 of 4 charge bands linked correctly."},
-  {id:22,name:"Account Monitor/Notes",cat:"Account Matching",status:"warning",detail:"Monitor active: expected credit from meter recalibration."},
-  {id:23,name:"Climate Change Levy",cat:"Tax & Levy",status:"error",detail:"Expected CCL at 0.775p/kWh = £221.96. Billed: £182.50 at 0.637p/kWh."},
-  {id:24,name:"Load Factor",cat:"Network",status:"pass",detail:"Load factor 94.7% — within acceptable range."},
-  {id:25,name:"Maximum Demand",cat:"Network",status:"error",detail:"Billed MD: 142 kW. Account limit: 130 kW."},
-  {id:26,name:"Supply Capacity",cat:"Network",status:"pass",detail:"Billed: 150 kVA. Agreed: 150 kVA. Exact match."},
-  {id:27,name:"TRIAD",cat:"Network",status:"warning",detail:"TRIAD: £320.00. Agreed: £295.00. Variance: £25.00."},
-  {id:28,name:"CCL and VAT Rate checks",cat:"Tax & Levy",status:"error",detail:"Standing charge incorrectly rated at 5% VAT."},
-  {id:29,name:"Unexpected Chargeable Data",cat:"Tariff",status:"warning",detail:"MMD charged £14.20 — tariff defines as data-only."},
-  {id:30,name:"Meter Read Status",cat:"Consumption",status:"warning",detail:"Estimated reads on bill. Actual reads were requested."},
-  {id:31,name:"Consumption vs HH Data",cat:"Consumption",status:"error",detail:"HH total: 27,840 kWh. Invoice: 28,640 kWh. Variance 2.9%."},
-  {id:32,name:"Consumption vs Target",cat:"Consumption",status:"warning",detail:"Target: 26,500 kWh. Billed: 28,640 kWh (+8.1%)."},
-  {id:33,name:"Transmission Charges",cat:"Network",status:"error",detail:"Transmission charge billed: £198.75. Expected: £156.20. Overcharge: £42.55."}
-];
-var invoices=[
-  {id:'INV-20240315-001',site:'Unit 12 Industrial Estate',type:'elec',icon:'⚡',supplier:'British Gas Business',date:'15 Mar 2024',amount:'£3,842.56',errors:8,warnings:11},
-  {id:'INV-20240310-002',site:'Head Office, Manchester',type:'gas',icon:'🔥',supplier:'Corona Energy',date:'10 Mar 2024',amount:'£1,240.80',errors:3,warnings:4},
-  {id:'INV-20240308-003',site:'Warehouse B, Leeds',type:'water',icon:'💧',supplier:'Yorkshire Water',date:'08 Mar 2024',amount:'£389.20',errors:1,warnings:2},
-  {id:'INV-20240305-004',site:'Unit 12 Industrial Estate',type:'elec',icon:'⚡',supplier:'British Gas Business',date:'05 Mar 2024',amount:'£3,120.00',errors:0,warnings:3},
-  {id:'INV-20240228-005',site:'Retail Unit, Sheffield',type:'elec',icon:'⚡',supplier:'Opus Energy',date:'28 Feb 2024',amount:'£892.40',errors:0,warnings:1}
-];
-var clients=[
-  {name:'Acme Manufacturing Ltd',sector:'Manufacturing',sites:4,invoices:23,errors:12,color:'#52b043',initials:'AM',contract:'BGB-SME-HH-2024-A.pdf'},
-  {name:'NorthShield Logistics',sector:'Logistics',sites:7,invoices:41,errors:3,color:'#5b9bd5',initials:'NL',contract:'NL-Contract-2023.pdf'},
-  {name:'Greenfield Retail Group',sector:'Retail',sites:12,invoices:68,errors:0,color:'#e0a030',initials:'GR'},
-  {name:'Pinnacle Office Park',sector:'Office',sites:2,invoices:14,errors:5,color:'#e05252',initials:'PO'},
-  {name:'Castleton Hotels Ltd',sector:'Hospitality',sites:3,invoices:19,errors:1,color:'#a78bfa',initials:'CH'}
-];
-var consData=[
-  {m:'Mar 23',kwh:22100},{m:'Apr 23',kwh:20800},{m:'May 23',kwh:21500},{m:'Jun 23',kwh:23200},
-  {m:'Jul 23',kwh:24600},{m:'Aug 23',kwh:28100},{m:'Sep 23',kwh:22900},{m:'Oct 23',kwh:23800},
-  {m:'Nov 23',kwh:19200},{m:'Dec 23',kwh:24100},{m:'Jan 24',kwh:22600},{m:'Feb 24',kwh:28640}
-];
-var baseline=23450;
-var accounts=[
-  {ref:'ELEC-00234',site:'Unit 12 Industrial Estate',mpan:'1012345678901',type:'Electricity',supplier:'British Gas Business',tariff:'SME-HH-2024-A',contract:'BGB-2024-A',status:'Active'},
-  {ref:'GAS-00891',site:'Head Office, Manchester',mpan:'7412369850',type:'Gas',supplier:'Corona Energy',tariff:'I&C-GAS-2023-B',contract:'CE-2023-B',status:'Active'},
-  {ref:'WAT-00112',site:'Warehouse B, Leeds',mpan:'WTR-112-YW',type:'Water',supplier:'Yorkshire Water',tariff:'Business-Measured',contract:'YW-2022',status:'Active'},
-  {ref:'ELEC-00891',site:'Retail Unit, Sheffield',mpan:'1098765432100',type:'Electricity',supplier:'Opus Energy',tariff:'SME-HH-2022-C',contract:'OE-2022-C',status:'Active'},
-  {ref:'ELEC-00123',site:'Old Depot, Bradford',mpan:'1055544433321',type:'Electricity',supplier:'EDF Energy',tariff:'HH-Legacy-2019',contract:'—',status:'Closed'}
-];
-var contractChecks=[
-  {label:'Unit rate (p/kWh)',contract:'12.84p',billed:'13.06p',vari:'+0.22p',status:'error'},
-  {label:'Standing charge (p/day)',contract:'42.5p',billed:'42.5p',vari:'—',status:'pass'},
-  {label:'Transmission rate (p/kWh)',contract:'0.546p',billed:'0.694p',vari:'+0.148p',status:'error'},
-  {label:'CCL rate (p/kWh)',contract:'0.775p',billed:'0.637p',vari:'-0.138p',status:'error'},
-  {label:'Distribution Red band rate',contract:'£152.10',billed:'£186.40',vari:'+£34.30',status:'error'},
-  {label:'TRIAD charge',contract:'£295.00',billed:'£320.00',vari:'+£25.00',status:'warning'}
-];
-var networkLines=[
-  {type:'Transmission charge',billed:'£198.75',expected:'£156.20',vari:'+£42.55',status:'error'},
-  {type:'Distribution Red band',billed:'£186.40',expected:'£152.10',vari:'+£34.30',status:'error'},
-  {type:'Distribution Amber band',billed:'£142.10',expected:'£142.10',vari:'£0.00',status:'pass'},
-  {type:'Distribution Green band',billed:'£83.80',expected:'£83.80',vari:'£0.00',status:'pass'},
-  {type:'Reactive charge',billed:'£28.50',expected:'£0.00',vari:'+£28.50',status:'warning'},
-  {type:'TRIAD (provisional)',billed:'£320.00',expected:'£295.00',vari:'+£25.00',status:'warning'}
-];
-var catSummary=[
-  {cat:'File Integrity',total:5,errors:1,warnings:2},{cat:'Account Matching',total:5,errors:1,warnings:2},
-  {cat:'Tariff',total:3,errors:2,warnings:1},{cat:'Financial',total:6,errors:4,warnings:2},
-  {cat:'Consumption',total:5,errors:3,warnings:2},{cat:'Network',total:6,errors:3,warnings:2},
-  {cat:'Tax & Levy',total:2,errors:2,warnings:0},{cat:'Other',total:1,errors:0,warnings:1}
-];
+var checks=[];
+var invoices=[];
+var consData=[];
+var baseline=0;
+var accounts=[];
+var contractChecks=[];
+var networkLines=[];
+var currentInvoiceMeta={invnum:'',acctref:'',supplier:''};
+var lastOvercharge=0;
 
 function bstat(s){
   if(s==='error') return '<span class="badge error">&#x2717; Error</span>';
@@ -610,31 +588,60 @@ function bstat(s){
   return '<span class="badge pass">&#x2713; Pass</span>';
 }
 
+var allChecks=[];
+var emptyState=function(icon,title,sub,ctaLabel,ctaFn){
+  return '<div style="text-align:center;padding:32px 16px;color:var(--tx3)"><div style="font-size:26px;margin-bottom:8px">'+icon+'</div><div style="font-size:12px;font-weight:700;color:var(--tx2);margin-bottom:4px">'+title+'</div><div style="font-size:11px;line-height:1.6;max-width:320px;margin:0 auto 14px">'+sub+'</div>'+(ctaLabel?'<button class="btn btn-g" style="font-size:11px" onclick="'+ctaFn+'">'+ctaLabel+'</button>':'')+'</div>';
+};
+
+function updateGlobalStats(){
+  var errN=0,warnN=0,passN=0,over=0;
+  invoices.forEach(function(i){errN+=i.errors||0;warnN+=i.warnings||0;passN+=i.passed||0;over+=i.overcharge||0;});
+  var set=function(id,v){var el=document.getElementById(id);if(el)el.textContent=v;};
+  set('topbar-errors',errN);set('topbar-warnings',warnN);set('topbar-overcharge',money(over));
+  set('dash-errors',errN);set('dash-warnings',warnN);set('dash-passed',passN);set('dash-overcharge',money(over));
+  var alertBox=document.getElementById('dash-alert');
+  if(alertBox){
+    if(errN>0){
+      alertBox.innerHTML='<div class="alert error"><span style="font-size:14px;flex-shrink:0">🚨</span><div><strong>Action needed:</strong> '+errN+' error'+(errN===1?'':'s')+' found across your validated invoices — estimated recoverable overcharge <strong>'+money(over)+'</strong>. <a href="#" onclick="showPage(\'validation\',null);return false" style="color:var(--g);font-weight:700">Review now →</a></div></div>';
+    } else {
+      alertBox.innerHTML='';
+    }
+  }
+}
+
 function renderDashboard(){
   var ri=document.getElementById('recent-inv');
-  ri.innerHTML=invoices.slice(0,4).map(function(i){
-    var badge=i.errors>0?'<span class="ec">&#x26A0; '+i.errors+' err</span>':i.warnings>0?'<span class="badge warning">'+i.warnings+' warn</span>':'<span class="badge pass">&#x2713;</span>';
-    return '<div class="ir" onclick="showPage(\'validation\',null)"><div class="ii '+i.type+'">'+i.icon+'</div><div class="in_"><div class="n">'+i.id+' — '+i.site+'</div><div class="m">'+i.supplier+' · '+i.date+'</div></div><div class="ia">'+i.amount+'</div>'+badge+'</div>';
-  }).join('');
+  if(!invoices.length){
+    ri.innerHTML=emptyState('📤','No invoices yet','Upload a real invoice and run validation to see it appear here.','Upload Documents',"showPage('upload',null)");
+  } else {
+    ri.innerHTML=invoices.slice(0,4).map(function(i){
+      var badge=i.errors>0?'<span class="ec">&#x26A0; '+i.errors+' err</span>':i.warnings>0?'<span class="badge warning">'+i.warnings+' warn</span>':'<span class="badge pass">&#x2713;</span>';
+      return '<div class="ir" onclick="showPage(\'validation\',null)"><div class="ii '+i.type+'">'+i.icon+'</div><div class="in_"><div class="n">'+i.id+' — '+i.site+'</div><div class="m">'+i.supplier+' · '+i.date+'</div></div><div class="ia">'+i.amount+'</div>'+badge+'</div>';
+    }).join('');
+  }
   var cs=document.getElementById('cat-summary');
-  cs.innerHTML=catSummary.map(function(c){
-    var p=Math.round(((c.total-c.errors-c.warnings)/c.total)*100);
-    var cls=c.errors>0?'red':c.warnings>0?'amb':'grn';
-    return '<div style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:11px;color:var(--tx)">'+c.cat+'</span><span style="font-size:10px;color:var(--tx3)">'+(c.total-c.errors-c.warnings)+'/'+c.total+'</span></div><div class="pb"><div class="pf '+cls+'" style="width:'+p+'%"></div></div></div>';
-  }).join('');
+  if(!allChecks.length){
+    cs.innerHTML=emptyState('🧮','No checks run yet','Category coverage will appear here once you run your first validation.',null,null);
+  } else {
+    var cats={};
+    allChecks.forEach(function(c){cats[c.cat]=cats[c.cat]||{total:0,errors:0,warnings:0};cats[c.cat].total++;if(c.status==='error')cats[c.cat].errors++;if(c.status==='warning')cats[c.cat].warnings++;});
+    cs.innerHTML=Object.keys(cats).map(function(catName){
+      var c=cats[catName];
+      var p=Math.round(((c.total-c.errors-c.warnings)/c.total)*100);
+      var cls=c.errors>0?'red':c.warnings>0?'amb':'grn';
+      return '<div style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:11px;color:var(--tx)">'+catName+'</span><span style="font-size:10px;color:var(--tx3)">'+(c.total-c.errors-c.warnings)+'/'+c.total+'</span></div><div class="pb"><div class="pf '+cls+'" style="width:'+p+'%"></div></div></div>';
+    }).join('');
+  }
 }
 
-function renderClients(){
-  document.getElementById('client-grid').innerHTML=clients.map(function(c){
-    var err=c.errors>0?'<span style="color:var(--red);font-weight:700">&#x26A0; '+c.errors+' errors</span>':'<span style="color:var(--g)">&#x2713; No errors</span>';
-    var badge=c.errors>0?'<span class="badge error">'+c.errors+' errors</span>':'<span class="badge pass">Clean</span>';
-    var contractBadge=c.contract?'<span class="badge purple">📋 Contract loaded</span>':'<span class="badge warning">No contract</span>';
-    return '<div class="client-card" onclick="showPage(\'dashboard\',null)"><div class="cc-banner" style="background:'+c.color+'22"></div><div class="cc-body"><div class="cc-av" style="background:'+c.color+'">'+c.initials+'</div><div class="cc-name">'+c.name+'</div><div class="cc-meta">'+c.sector+' · '+c.sites+' sites · '+c.invoices+' invoices<br>'+err+'</div><div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"><span class="badge info">'+c.sites+' sites</span>'+badge+contractBadge+'</div></div></div>';
-  }).join('');
-}
 
 function renderInvoiceLibrary(){
-  document.getElementById('inv-library').innerHTML=invoices.map(function(i){
+  var el=document.getElementById('inv-library');
+  if(!invoices.length){
+    el.innerHTML=emptyState('📄','Invoice library is empty','Every invoice you upload and validate will be listed here.','Upload Documents',"showPage('upload',null)");
+    return;
+  }
+  el.innerHTML=invoices.map(function(i){
     var e=i.errors>0?'<span class="ec">&#x26A0; '+i.errors+' errors</span>':'';
     var w=i.warnings>0?'<span class="badge warning" style="margin-left:4px">'+i.warnings+' warn</span>':'';
     var p=(i.errors===0&&i.warnings===0)?'<span class="badge pass">&#x2713; Pass</span>':'';
@@ -645,9 +652,16 @@ function renderInvoiceLibrary(){
 function renderChecks(filter){
   var head=document.getElementById('check-table-head');
   var alertBox=document.getElementById('validation-alert');
+  if(!checks.length){
+    head.innerHTML='<tr><th>Status</th></tr>';
+    alertBox.innerHTML='<span style="font-size:14px;flex-shrink:0">🔍</span><div>No validation has been run yet. Go to <strong>Upload Documents</strong>, confirm the invoice figures, and click Run Validation to see real results here.</div>';
+    document.getElementById('check-table').innerHTML='<tr><td>'+emptyState('🧮','No results yet','Run a validation from the Upload Documents page to populate this table.','Upload Documents',"showPage('upload',null)")+'</td></tr>';
+    return;
+  }
   if(filter==='passed'){
     head.innerHTML='<tr><th>Category</th><th>Result</th><th>Coverage</th></tr>';
-    alertBox.innerHTML='<span style="font-size:14px;flex-shrink:0">✓</span><div>These checks came back clean — billed amounts matched contract, tariff, network and consumption expectations with no issues found. We don\'t list individual passed checks so as to keep our validation methodology proprietary — only flagged items are itemised.</div>';
+    var passN=checks.filter(function(c){return c.status==='pass';}).length;
+    alertBox.innerHTML='<span style="font-size:14px;flex-shrink:0">✓</span><div>'+passN+' check'+(passN===1?'':'s')+' on this invoice matched expectations with no issues found.</div>';
     var cats={};
     checks.forEach(function(c){cats[c.cat]=cats[c.cat]||{total:0,passed:0};cats[c.cat].total++;if(c.status==='pass')cats[c.cat].passed++;});
     document.getElementById('check-table').innerHTML=Object.keys(cats).map(function(cat){
@@ -658,22 +672,86 @@ function renderChecks(filter){
     return;
   }
   head.innerHTML='<tr><th>#</th><th>Status</th><th>What we found</th></tr>';
-  alertBox.innerHTML='<span style="font-size:14px;flex-shrink:0">🔍</span><div>Volt IVR runs a full suite of billing, tariff, network and consumption checks in the background on every invoice. Only items requiring your attention are listed below — <strong>14 additional checks passed</strong> with no issues.</div>';
+  var passCount=checks.filter(function(c){return c.status==='pass';}).length;
+  alertBox.innerHTML='<span style="font-size:14px;flex-shrink:0">🔍</span><div>Results below are calculated from the figures you confirmed on Upload Documents. <strong>'+passCount+' check'+(passCount===1?'':'s')+' passed</strong> with no issues.</div>';
   var rows=checks.filter(function(c){return c.status==='error'||c.status==='warning';});
   if(filter==='errors') rows=rows.filter(function(c){return c.status==='error';});
   else if(filter==='warnings') rows=rows.filter(function(c){return c.status==='warning';});
-  document.getElementById('check-table').innerHTML=rows.map(function(c){
+  document.getElementById('check-table').innerHTML=rows.length?rows.map(function(c){
     return '<tr class="check-row '+c.status+'"><td style="font-size:10px;color:var(--tx3);font-weight:700">'+c.id+'</td><td>'+bstat(c.status)+'</td><td style="font-size:12px;color:var(--tx2);line-height:1.6;padding-top:11px;padding-bottom:11px">'+c.detail+'</td></tr>';
-  }).join('');
+  }).join(''):'<tr><td colspan="3">'+emptyState('✓','Nothing in this filter','No checks matched this filter for the current invoice.',null,null)+'</td></tr>';
 }
 
 var consumptionFilter='all';
+function updateConsumptionStatCards(){
+  var setTxt=function(id,v){var el=document.getElementById(id);if(el)el.textContent=v;};
+  if(!consData.length){
+    setTxt('cons-stat-baseline','—');setTxt('cons-stat-baseline-sub','No data yet →');
+    setTxt('cons-stat-anomalies','0');setTxt('cons-stat-anomalies-sub','No data yet →');
+    setTxt('cons-stat-largest','—');setTxt('cons-stat-largest-sub','No data yet →');
+    setTxt('cons-stat-yoy','—');setTxt('cons-stat-yoy-sub','Not enough data →');
+    return;
+  }
+  setTxt('cons-stat-baseline',Math.round(baseline).toLocaleString());
+  setTxt('cons-stat-baseline-sub','kWh ('+consData.length+'-month avg) →');
+
+  var anomalies=0,maxDev=0,maxMonth=consData[0].m;
+  consData.forEach(function(d){
+    var dev=baseline?((d.kwh-baseline)/baseline)*100:0;
+    if(Math.abs(dev)>12)anomalies++;
+    if(Math.abs(dev)>Math.abs(maxDev)){maxDev=dev;maxMonth=d.m;}
+  });
+  setTxt('cons-stat-anomalies',anomalies);
+  setTxt('cons-stat-anomalies-sub','Last '+consData.length+' month'+(consData.length===1?'':'s')+' →');
+
+  if(consData.length>1){
+    setTxt('cons-stat-largest',(maxDev>=0?'+':'')+maxDev.toFixed(1)+'%');
+    setTxt('cons-stat-largest-sub',maxMonth+' →');
+  } else {
+    setTxt('cons-stat-largest','—');
+    setTxt('cons-stat-largest-sub','Need 2+ months →');
+  }
+
+  // Year-on-year: only meaningful once we have the same calendar month in two different
+  // years (e.g. "Oct 25" and "Oct 26") — with sparse real uploads this often isn't
+  // available yet, so say so plainly rather than showing a misleading fake percentage.
+  var byMonth={};
+  consData.forEach(function(d){
+    var parts=d.m.split(' ');
+    if(parts.length<2)return;
+    byMonth[parts[0]]=byMonth[parts[0]]||[];
+    byMonth[parts[0]].push({yr:parts[1],kwh:d.kwh});
+  });
+  var diffs=[];
+  Object.keys(byMonth).forEach(function(mon){
+    var arr=byMonth[mon].slice().sort(function(a,b){return a.yr<b.yr?-1:a.yr>b.yr?1:0;});
+    for(var i=1;i<arr.length;i++){
+      if(arr[i-1].kwh)diffs.push(((arr[i].kwh-arr[i-1].kwh)/arr[i-1].kwh)*100);
+    }
+  });
+  if(diffs.length){
+    var avgDiff=diffs.reduce(function(a,b){return a+b;},0)/diffs.length;
+    setTxt('cons-stat-yoy',(avgDiff>=0?'+':'')+avgDiff.toFixed(1)+'%');
+    setTxt('cons-stat-yoy-sub','vs prior year avg →');
+  } else {
+    setTxt('cons-stat-yoy','—');
+    setTxt('cons-stat-yoy-sub','Not enough data →');
+  }
+}
+
 function renderConsumption(){
+  var chartEl=document.getElementById('cons-chart');
+  updateConsumptionStatCards();
+  if(!consData.length){
+    chartEl.innerHTML='';
+    document.getElementById('cons-table').innerHTML='<tr><td colspan="4">'+emptyState('📈','No consumption data yet','Each validated invoice with an invoice date adds a monthly consumption point here.','Upload Documents',"showPage('upload',null)")+'</td></tr>';
+    return;
+  }
   var max=0;
   for(var i=0;i<consData.length;i++){if(consData[i].kwh>max)max=consData[i].kwh;}
   var rows=consData.map(function(d){
     var pct=(d.kwh/max)*100;
-    var dev=((d.kwh-baseline)/baseline)*100;
+    var dev=baseline?((d.kwh-baseline)/baseline)*100:0;
     var cls=Math.abs(dev)>20?'anomaly':Math.abs(dev)>12?'warnb':'normal';
     var tcls=Math.abs(dev)>20?'error':Math.abs(dev)>12?'warning':'pass';
     return {m:d.m,kwh:d.kwh,pct:pct,dev:dev,cls:cls,tcls:tcls};
@@ -681,13 +759,17 @@ function renderConsumption(){
   var chartHtml=rows.map(function(r){
     return '<div class="bar-wrap"><div class="bar '+r.cls+'" style="height:'+Math.round(r.pct)+'px"></div><div class="bar-label">'+r.m.split(' ')[0]+'</div></div>';
   }).join('');
-  document.getElementById('cons-chart').innerHTML=chartHtml;
+  chartEl.innerHTML=chartHtml;
   renderConsumptionTable(rows);
 }
 function renderConsumptionTable(rows){
+  if(!consData.length){
+    document.getElementById('cons-table').innerHTML='<tr><td colspan="4">'+emptyState('📈','No consumption data yet','Each validated invoice with an invoice date adds a monthly consumption point here.',null,null)+'</td></tr>';
+    return;
+  }
   rows=rows||(function(){
     var max=0;for(var i=0;i<consData.length;i++){if(consData[i].kwh>max)max=consData[i].kwh;}
-    return consData.map(function(d){var dev=((d.kwh-baseline)/baseline)*100;var tcls=Math.abs(dev)>20?'error':Math.abs(dev)>12?'warning':'pass';return {m:d.m,kwh:d.kwh,dev:dev,tcls:tcls};});
+    return consData.map(function(d){var dev=baseline?((d.kwh-baseline)/baseline)*100:0;var tcls=Math.abs(dev)>20?'error':Math.abs(dev)>12?'warning':'pass';return {m:d.m,kwh:d.kwh,dev:dev,tcls:tcls};});
   })();
   var filtered=rows;
   var tag=document.getElementById('cons-filter-tag');
@@ -733,14 +815,29 @@ function renderBillingLists(){
     cTag.style.display=cRows.length?'flex':'none';cLabel.textContent=labelText+' ('+cRows.length+')';
     nTag.style.display=nRows.length?'flex':'none';nLabel.textContent=labelText+' ('+nRows.length+')';
   }
-  document.getElementById('billing-contract').innerHTML=cRows.map(function(c){
+  var allRows=contractChecks.concat(networkLines);
+  var passN=allRows.filter(function(r){return r.status==='pass';}).length;
+  var errN=allRows.filter(function(r){return r.status==='error';}).length;
+  var warnN=allRows.filter(function(r){return r.status==='warning';}).length;
+  document.getElementById('billing-passed').textContent=passN;
+  document.getElementById('billing-errors').textContent=errN;
+  document.getElementById('billing-warnings').textContent=warnN;
+  document.getElementById('billing-overcharge').textContent=money(lastOvercharge);
+  var banner=document.getElementById('billing-contract-alert');
+  if(currentInvoiceMeta.supplier&&contractChecks.length){
+    banner.style.display='flex';
+    banner.innerHTML='<span style="font-size:14px;flex-shrink:0">📋</span><div>Showing contract checks for the most recently validated invoice — <strong>'+currentInvoiceMeta.invnum+'</strong> · '+currentInvoiceMeta.supplier+'.</div>';
+  } else {
+    banner.style.display='none';
+  }
+  document.getElementById('billing-contract').innerHTML=contractChecks.length?(cRows.map(function(c){
     var col=c.status==='error'?'var(--red)':c.status==='warning'?'var(--amb)':'var(--g)';
-    return '<div class="contract-item"><div style="font-size:11px;color:var(--tx)">'+c.label+'</div><div style="display:flex;align-items:center;gap:10px"><div><div style="font-size:10px;color:var(--tx3)">Contract: '+c.contract+'</div><div style="font-size:11px;font-weight:700;color:'+col+'">Billed: '+c.billed+(c.vari!='—'?' <span style="font-size:9px">'+c.vari+'</span>':'')+'</div></div>'+bstat(c.status)+'</div></div>';
-  }).join('')||'<div style="font-size:11px;color:var(--tx3);padding:8px 0">No items match this filter.</div>';
-  document.getElementById('billing-network').innerHTML=nRows.map(function(n){
+    return '<div class="contract-item"><div style="font-size:11px;color:var(--tx)">'+c.label+'</div><div style="font-size:11px;color:'+col+';line-height:1.5;max-width:420px">'+(c.detail||'')+'</div>'+bstat(c.status)+'</div>';
+  }).join('')||'<div style="font-size:11px;color:var(--tx3);padding:8px 0">No items match this filter.</div>'):emptyState('📋','No contract checks yet','Upload a supply contract (or enter its rates manually) on the Upload Documents page, then run validation.','Upload Documents',"showPage('upload',null)");
+  document.getElementById('billing-network').innerHTML=networkLines.length?nRows.map(function(n){
     var col=n.status==='error'?'var(--red)':n.status==='warning'?'var(--amb)':'var(--g)';
     return '<tr><td style="color:var(--tx);font-weight:500">'+n.type+'</td><td>'+n.billed+'</td><td>'+n.expected+'</td><td style="font-weight:700;color:'+col+'">'+n.vari+'</td><td>'+bstat(n.status)+'</td></tr>';
-  }).join('');
+  }).join(''):'<tr><td colspan="5">'+emptyState('🔎','Network charge checks not yet available','This first version calculates billing, tariff and tax checks from your invoice and contract. Network/DUoS/TUoS charge checks need additional reference data not yet integrated.',null,null)+'</td></tr>';
 }
 function filterBilling(type){
   billingFilter=type;
@@ -750,6 +847,10 @@ function filterBilling(type){
 }
 
 function renderAccounts(){
+  if(!accounts.length){
+    document.getElementById('account-table').innerHTML='<tr><td colspan="8">'+emptyState('🗂️','No sites yet','Sites are added automatically from each invoice you validate.','Upload Documents',"showPage('upload',null)")+'</td></tr>';
+    return;
+  }
   document.getElementById('account-table').innerHTML=accounts.map(function(a){
     return '<tr><td style="font-weight:700;color:var(--g)">'+a.ref+'</td><td style="color:var(--tx)">'+a.site+'</td><td style="font-family:monospace;font-size:10px">'+a.mpan+'</td><td>'+a.type+'</td><td>'+a.supplier+'</td><td><span class="badge info">'+a.tariff+'</span></td><td><span class="badge purple">'+a.contract+'</span></td><td><span class="badge '+(a.status==='Active'?'pass':'error')+'">'+a.status+'</span></td></tr>';
   }).join('');
@@ -775,7 +876,7 @@ function buildReportText(){
     t+='These items appear inconsistent with our records and we would appreciate confirmation or correction:\n\n';
     warnings.forEach(function(c,i){t+=(i+1)+'. '+c.detail+'\n';});
   }
-  t+='\nEstimated overcharge identified: £1,240\n\n';
+  t+='\nEstimated overcharge identified: '+money(lastOvercharge)+'\n\n';
   t+='Please could you confirm receipt of this dispute and provide a response, including a corrected invoice and/or refund where applicable, within 10 working days.\n\n';
   t+='Yours faithfully,\n';
   t+='James Davies\n';
@@ -783,6 +884,8 @@ function buildReportText(){
   return t;
 }
 function openSupplierReport(){
+  document.getElementById('reportSupplier').value=currentInvoiceMeta.supplier||'';
+  document.getElementById('reportAccount').value=(currentInvoiceMeta.acctref||'')+(currentInvoiceMeta.invnum?' · Invoice '+currentInvoiceMeta.invnum:'');
   document.getElementById('reportText').value=buildReportText();
   document.getElementById('reportCopyMsg').style.display='none';
   document.getElementById('reportModal').classList.add('open');
@@ -829,7 +932,12 @@ function renderSpendStatus(){
   var warnCount=lines.filter(function(l){return l.status==='warning';}).length;
   var el={verdict:document.getElementById('spend-verdict'),sub:document.getElementById('spend-sub'),detail:document.getElementById('spend-detail'),cta:document.getElementById('spend-cta'),bar:document.getElementById('spend-status-bar')};
   var verdict,color,sub,detail,ctaLabel,ctaFn;
-  if(errCount>=3){
+  if(!invoices.length){
+    verdict='No data yet';color='var(--tx3)';
+    sub='Upload your first invoice to get started';
+    detail='Once you upload a real invoice (and ideally your supply contract) and run validation, this card will tell you whether your spend is in line with your contract, needs review, or shows signs of overcharging.';
+    ctaLabel='📤 Upload Documents';ctaFn="showPage('upload',null)";
+  }else if(errCount>=3){
     verdict='Overspending';color='var(--red)';
     sub=errCount+' rate mismatches · '+warnCount+' to review';
     detail='Multiple charges on this invoice are billed above your contracted and published network rates. Based on current findings, you are likely on unfavourable terms or being incorrectly billed against your contract. We recommend disputing these charges with your supplier and requesting a corrected invoice and refund.';
@@ -854,6 +962,7 @@ function renderSpendStatus(){
 }
 
 function exportPDF(){
+  if(!checks.length){alert('No validation results yet — upload an invoice and run validation first.');return;}
   var jsPDF=window.jspdf.jsPDF;
   var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
   var W=doc.internal.pageSize.getWidth();
@@ -864,10 +973,13 @@ function exportPDF(){
   doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(160,160,160);
   doc.text('Utility Bill Validation & Recovery — by Unitech International',14,21);
   doc.setTextColor(20,20,20);doc.setFontSize(12);doc.setFont('helvetica','bold');
-  doc.text('Validation Report — INV-20240315-001',14,46);
+  doc.text('Validation Report — '+(currentInvoiceMeta.invnum||'(no invoice number)'),14,46);
   doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);
-  doc.text('Account: ELEC-00234  ·  British Gas Business  ·  Generated: '+new Date().toLocaleDateString('en-GB'),14,52);
-  var boxes=[{l:'ERRORS',v:'8',c:[220,82,82]},{l:'WARNINGS',v:'11',c:[224,160,48]},{l:'PASSED',v:'14',c:[82,176,67]},{l:'OVERCHARGE',v:'£1,240',c:[91,155,213]}];
+  doc.text('Account: '+(currentInvoiceMeta.acctref||'—')+'  ·  '+(currentInvoiceMeta.supplier||'—')+'  ·  Generated: '+new Date().toLocaleDateString('en-GB'),14,52);
+  var errN=checks.filter(function(c){return c.status==='error';}).length;
+  var warnN=checks.filter(function(c){return c.status==='warning';}).length;
+  var passN=checks.filter(function(c){return c.status==='pass';}).length;
+  var boxes=[{l:'ERRORS',v:String(errN),c:[220,82,82]},{l:'WARNINGS',v:String(warnN),c:[224,160,48]},{l:'PASSED',v:String(passN),c:[82,176,67]},{l:'OVERCHARGE',v:money(lastOvercharge),c:[91,155,213]}];
   for(var i=0;i<boxes.length;i++){var b=boxes[i];var x=14+i*47;doc.setFillColor(b.c[0],b.c[1],b.c[2]);doc.roundedRect(x,57,44,18,2,2,'F');doc.setTextColor(255,255,255);doc.setFontSize(13);doc.setFont('helvetica','bold');doc.text(b.v,x+22,67,{align:'center'});doc.setFontSize(5.5);doc.text(b.l,x+22,72,{align:'center'});}
   var flagged=checks.filter(function(c){return c.status==='error'||c.status==='warning';});
   var y=84;doc.setFillColor(82,176,67);doc.rect(14,y,182,7,'F');doc.setTextColor(0,0,0);doc.setFontSize(7);doc.setFont('helvetica','bold');
@@ -900,12 +1012,12 @@ function doLogin(){
   document.getElementById('app').style.display='block';
   renderDashboard();
   renderSpendStatus();
-  renderClients();
   renderChecks('flagged');
   renderBilling();
   renderAccounts();
   renderInvoiceLibrary();
   renderConsumption();
+  updateGlobalStats();
 }
 
 function showPage(id,el){
@@ -946,46 +1058,704 @@ function toggleDetail(id,btn){
   btn.textContent=open?'▾ Detail':'▴ Hide';
 }
 
-function handleFileSelect(e,type){showUploadProgress(e.target.files[0].name,type);}
-function handleDrop(e,type){e.preventDefault();var f=e.dataTransfer.files;if(f.length)showUploadProgress(f[0].name,type);}
+if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}
 
-function showUploadProgress(name,type){
-  if(type==='contract'){
-    var cs=document.getElementById('contract-status');
-    document.getElementById('contract-msg').innerHTML='Contract <strong>'+name+'</strong> parsed. Future invoices will be validated against contract terms automatically.';
-    cs.style.display='flex';return;
+function handleFileSelect(e,type){var f=e.target.files;if(f.length)processUploadedFile(f[0],type);}
+function handleDrop(e,type){e.preventDefault();document.getElementById('invoice-dropzone')&&document.getElementById('invoice-dropzone').classList.remove('drag');var f=e.dataTransfer.files;if(f.length)processUploadedFile(f[0],type);}
+
+function extractPdfText(file){
+  return new Promise(function(resolve,reject){
+    if(!window.pdfjsLib){reject(new Error('PDF engine unavailable'));return;}
+    var reader=new FileReader();
+    reader.onload=function(){
+      pdfjsLib.getDocument({data:new Uint8Array(reader.result)}).promise.then(function(pdf){
+        var pages=[];
+        var loadPage=function(n){
+          return pdf.getPage(n).then(function(page){return page.getTextContent();}).then(function(tc){
+            pages.push(tc.items.map(function(it){return it.str;}).join(' '));
+          });
+        };
+        var chain=Promise.resolve();
+        for(var i=1;i<=pdf.numPages;i++){(function(n){chain=chain.then(function(){return loadPage(n);});})(i);}
+        chain.then(function(){resolve(pages.join('\n'));}).catch(reject);
+      }).catch(reject);
+    };
+    reader.onerror=reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function numFrom(str){if(!str)return null;var n=parseFloat(String(str).replace(/,/g,''));return isNaN(n)?null:n;}
+function pad2(n){n=String(n);return n.length<2?'0'+n:n;}
+var MONTH_MAP={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+function parseAnyDateStr(raw){
+  if(!raw)return null;
+  raw=String(raw).trim();
+  var m=raw.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
+  if(m){var yy=m[3].length===2?'20'+m[3]:m[3];return yy+'-'+pad2(m[2])+'-'+pad2(m[1]);}
+  var m2=raw.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if(m2)return m2[1]+'-'+pad2(m2[2])+'-'+pad2(m2[3]);
+  var m3=raw.match(/(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\s+(\d{4})/);
+  if(m3){var mon=MONTH_MAP[m3[2].toLowerCase().substring(0,3)];if(mon)return m3[3]+'-'+pad2(mon)+'-'+pad2(m3[1]);}
+  return null;
+}
+function firstMatch(text,patterns){
+  for(var i=0;i<patterns.length;i++){
+    var m=text.match(patterns[i]);
+    if(m&&m[1]!==undefined)return m[1];
   }
-  var prog=document.getElementById('upload-progress');
-  var fill=document.getElementById('prog-fill');
-  var lbl=document.getElementById('prog-label');
-  prog.style.display='block';
-  var steps=['Parsing file structure…','Checking account references…','Running validation checks…','Checking against supply contract…','Updating consumption baseline…','Flagging billing errors…','Complete — 8 errors, 11 warnings found'];
-  var i=0;
-  var iv=setInterval(function(){
-    if(i>=steps.length){clearInterval(iv);return;}
-    fill.style.width=Math.round(((i+1)/steps.length)*100)+'%';
-    fill.className='pf '+(i<steps.length-1?'amb':'grn');
-    lbl.textContent=steps[i];i++;
-  },550);
+  return null;
+}
+function firstDate(text,patterns){
+  var raw=firstMatch(text,patterns);
+  return raw?parseAnyDateStr(raw):null;
+}
+// Matches "<qty> kWh ... <rate> p/kWh" pairs anywhere in the text — this is how per-band
+// (day/night/seasonal/TOU) tariff lines are laid out on most UK commercial invoices.
+// Summing every band gives total kWh, and a quantity-weighted average gives a single
+// blended p/kWh rate usable in the recalculation, even when the invoice never states
+// one single "unit rate" (multi-rate tariffs are common and have no single true rate).
+//
+// Reissued/corrected invoices sometimes carry a "CR" (credit/reversal) line whose
+// quantity duplicates an earlier band — e.g. "21,964.6 kWh CR 34.5p/kWh" alongside the
+// normal bands that already sum to that same 21,964.6 kWh. Summing it in blindly would
+// double the true consumption. These are excluded rather than guessed at, since netting
+// a credit correctly needs more context than text extraction can safely infer.
+function parseEnergyBands(text){
+  var re=/([\d,]+\.?\d*)\s*kwh(\s*CR\b)?[\s\S]{0,40}?([\d]+\.[\d]+)\s*p(?:ence)?\s*\/?\s*kwh/gi;
+  var m,totalKwh=0,totalCost=0,bands=0,creditBands=0;
+  while((m=re.exec(text))){
+    var qty=numFrom(m[1]),rate=numFrom(m[3]);
+    if(qty!==null&&rate!==null&&qty>0){
+      if(m[2]){creditBands++;continue;}
+      totalKwh+=qty;totalCost+=qty*rate;bands++;
+    }
+  }
+  if(!bands)return null;
+  return {kwh:totalKwh,rate:totalCost/totalKwh,bands:bands,creditBands:creditBands};
+}
+var DATECHUNK='([0-9]{1,2}(?:st|nd|rd|th)?(?:[\\/\\-\\.]\\s*[0-9]{1,2}|\\s+[A-Za-z]{3,9})[\\/\\-\\.\\s]*[0-9]{2,4})';
+
+// SSE-style tables label bands as "Day units"/"Night units" (or "Day energy"/"Night
+// energy") with quantity, rate(pence) and amount as three bare numbers — no literal
+// "kWh" or "p/kWh" text the way npower and most suppliers write it. This is a second-tier
+// fallback tried only when the primary kWh-labelled band parser finds nothing.
+function parseEnergyBandsAlt(text){
+  var re=/(?:day|night|evening|weekend|off[\s-]?peak|standard)\s*(?:units?|energy)\s+(-?[\d,]+\.?\d*)\s+([\d.]+)\s+([\d,]+\.\d{2})/gi;
+  var m,totalKwh=0,totalCost=0,bands=0,creditBands=0;
+  while((m=re.exec(text))){
+    var qty=numFrom(m[1]),rate=numFrom(m[2]);
+    if(qty!==null&&rate!==null){
+      if(qty<0){creditBands++;continue;}
+      if(qty===0)continue;
+      totalKwh+=qty;totalCost+=qty*rate;bands++;
+    }
+  }
+  if(!bands)return null;
+  return {kwh:totalKwh,rate:totalCost/totalKwh,bands:bands,creditBands:creditBands};
 }
 
-var newClientContractName=null;
-function openAddClient(){document.getElementById('clientModal').classList.add('open');}
-function closeModal(){
-  document.getElementById('clientModal').classList.remove('open');
-  newClientContractName=null;
-  document.getElementById('newClientContractLabel').textContent='Drop contract or click to browse';
+function parseInvoiceFields(text){
+  var f={};
+  // Some suppliers (SSE) print "Your site reference / invoice number A / B" where B is
+  // the true invoice number and A is a separate site reference — a generic "invoice
+  // number" search would otherwise latch onto the wrong nearby token, so this specific
+  // pattern is tried first.
+  f.invnum=firstMatch(text,[
+    /site\s*reference\s*\/\s*invoice\s*number\s*[\dA-Za-z]+\s*\/\s*([\dA-Za-z\-]+)/i,
+    /invoice\s*(?:no\.?|number|ref(?:erence)?)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\/]{3,})/i
+  ]);
+  f.acctref=firstMatch(text,[/account\s*(?:number|ref(?:erence)?|no\.?)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,19}(?: [A-Za-z0-9]{2,10})?)/i]);
+  if(f.acctref)f.acctref=f.acctref.replace(/\s+/g,'');
+  f.mpan=firstMatch(text,[/MPAN\s*[:\-]?\s*([0-9\s]{10,25})/i]);
+  if(f.mpan)f.mpan=f.mpan.replace(/\s+/g,'').trim();
+  f.mprn=firstMatch(text,[/MPRN\s*[:\-]?\s*([0-9]{6,12})/i]);
+  if(f.mprn)f.mprn=f.mprn.trim();
+  f.invdate=firstDate(text,[
+    new RegExp('invoice\\s*date\\s*[:\\-]?\\s*'+DATECHUNK,'i'),
+    new RegExp('bill\\s*date\\s*[:\\-]?\\s*'+DATECHUNK,'i'),
+    new RegExp('tax\\s*point\\s*date\\s*[:\\-]?\\s*'+DATECHUNK,'i')
+  ]);
+  var periodM=text.match(new RegExp('(?:invoice\\s*period|billing\\s*period|period)\\s*(?:from)?\\s*[:\\-]?\\s*'+DATECHUNK+'\\s*(?:to|-|–)\\s*'+DATECHUNK,'i'));
+  if(periodM){f.pstart=parseAnyDateStr(periodM[1]);f.pend=parseAnyDateStr(periodM[2]);}
+  else{
+    f.pstart=firstDate(text,[/(?:period|from)\s*[:\-]?\s*([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})\s*(?:to|-|–)/i]);
+    f.pend=firstDate(text,[/(?:to|-|–)\s*([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})\s*(?:\(|$|days)/i]);
+  }
+  var bandInfo=parseEnergyBands(text)||parseEnergyBandsAlt(text);
+  if(bandInfo){
+    f.kwh=Math.round(bandInfo.kwh*100)/100;
+    f.unitrate=Math.round(bandInfo.rate*1000)/1000;
+    f.multiRate=bandInfo.bands>1;
+    f.hasCreditAdjustment=bandInfo.creditBands>0;
+  } else {
+    f.kwh=numFrom(firstMatch(text,[/total\s*(?:consumption|usage)?\s*[:\-]?\s*([\d,]+(?:\.\d+)?)\s*kwh/i,/([\d,]+(?:\.\d+)?)\s*kwh/i]));
+    f.unitrate=numFrom(firstMatch(text,[/unit\s*rate\s*[:\-]?\s*([\d.]+)\s*p(?:ence)?\s*\/?\s*kwh/i,/([\d.]+)\s*p(?:ence)?\s*\/\s*kwh/i]));
+  }
+  f.standing=numFrom(firstMatch(text,[
+    /standing\s*charge\s*at\s*([\d.]+)\s*p\s*for\s*\d+\s*day/i,
+    /standing\s*charge[\s\S]{0,150}?([\d]+\.[\d]+)\s*p\s*\/?\s*day/i,
+    /standing\s*charge\s*[:\-]?\s*([\d.]+)\s*p(?:ence)?/i
+  ]));
+  f.ccl=numFrom(firstMatch(text,[
+    /CCL\s*on\s*[\d,.]+\s*units?\s*at\s*[\d.]+p\s*([\d,]+\.\d{2})/i,
+    /climate\s*change\s*levy[\s\S]{0,150}?£\s*([\d,]+\.\d{2})/i,
+    /\bCCL\b[\s\S]{0,150}?£\s*([\d,]+\.\d{2})/i
+  ]));
+  f.vat=numFrom(firstMatch(text,[
+    /VAT\s*(?:refund\s*)?at\s*[\d.]+\s*%\s*on\s*charges\s*of\s*£[\d,]+\.\d{2}\s*([\d,]+\.\d{2})/i,
+    /total\s*vat\s*[:\-]?\s*£?\s*([\d,]+\.\d{2})/i,
+    /(?<!excluding\s)\bVAT\b\s*£\s*([\d,]+\.\d{2})/i,
+    /\bVAT\b[^£\d]{0,20}£\s*([\d,]+\.\d{2})/i
+  ]));
+  f.total=numFrom(firstMatch(text,[
+    /total\s*this\s*invoice\s*£?\s*([\d,]+\.\d{2})/i,
+    /total\s*(?:amount\s*)?(?:due|payable)\s*[:\-]?\s*£\s*([\d,]+\.\d{2})/i,
+    /amount\s*due\s*[:\-]?\s*£\s*([\d,]+\.\d{2})/i,
+    /charges\s*for\s*period\s*£\s*([\d,]+\.\d{2})/i,
+    /new\s*invoice\s*charge\s*:?\s*£\s*([\d,]+\.\d{2})/i
+  ]));
+  // A total shown immediately followed by "CR" is a credit note (a reversal/refund),
+  // not a normal charge — flagged so it never gets silently auto-validated as a bill.
+  var totalCrMatch=text.match(/total\s*this\s*invoice\s*[\d,]+\.\d{2}\s*CR\b/i);
+  f.isCreditNote=!!totalCrMatch||/\bcredit\s*note\b/i.test(text);
+  f.supplier=firstMatch(text,[/(British Gas Business|EDF Energy|E\.?ON|Npower|SSE|Scottish Power|Opus Energy|Corona Energy|Yorkshire Water|Total Gas & Power|Total Energies|Drax|Gazprom)/i]);
+  // Supply address becomes the site's display name in Site Register — captured up to
+  // and including a UK postcode, since that reliably marks the end of an address block.
+  f.supplyaddress=firstMatch(text,[
+    /supply\s*address\s*[:\-]?\s*([\s\S]{0,150}?[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})/i,
+    /supply\s*to\s*:?\s*([\s\S]{0,150}?[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})/i
+  ]);
+  if(f.supplyaddress){
+    f.supplyaddress=f.supplyaddress.replace(/\s+/g,' ').trim();
+  }
+  f.utype=/\bgas\b/i.test(text)&&!/electric/i.test(text)?'Gas':/water/i.test(text)&&!/electric/i.test(text)?'Water':'Electricity';
+
+  // VAT rate actually applied — never assume standard 20%. UK commercial energy invoices
+  // commonly show a reduced (5%) or zero rate under a customer VAT relief declaration.
+  f.vatratepct=numFrom(firstMatch(text,[
+    /VAT\s*(?:refund\s*)?at\s*([\d.]+)\s*%/i,
+    /reduced\s*vat\s*([\d.]+)\s*%/i,
+    /vat\s*rate[\s\S]{0,20}?([\d.]+)\s*%/i,
+    /([\d.]+)\s*%\s*(?:reduced\s*)?vat/i
+  ]));
+  if(f.vatratepct===null&&f.vat!==null&&f.total!==null){
+    // Fall back to inferring the rate from billed figures if no explicit % was printed.
+    var netGuess=f.total-f.vat;
+    if(netGuess>0){var impliedPct=Math.round((f.vat/netGuess)*10000)/100;if(impliedPct>=0&&impliedPct<=25)f.vatratepct=impliedPct;}
+  }
+  // A VAT relief/exemption declaration (the same basis that usually grants reduced-rate
+  // VAT) very often also grants CCL exemption — surface this as a suggestion, not a fact.
+  f.cclExemptHint=/vat\s*declaration|qualifying\s*relief|vat\s*exemption/i.test(text)&&(f.vatratepct===null||f.vatratepct<20);
+
+  // Best-effort sum of common bundled charges the core model doesn't itemise:
+  // capacity/kVA charges, network/DUoS charges, and third-party agent/meter-operator fees.
+  function firstMoneyAfter(anchorRe,windowSize){
+    var m=anchorRe.exec(text);
+    if(!m)return null;
+    var win=text.substring(m.index+m[0].length,m.index+m[0].length+windowSize);
+    var mm=win.match(/£\s*([\d,]+\.\d{2})/);
+    return mm?numFrom(mm[1]):null;
+  }
+  // "(?!s)" excludes the generic "capacity charges" summary-table label so this only
+  // matches the actual itemised capacity charge line (e.g. "Capacity charge based on...").
+  var capacityCharge=firstMoneyAfter(/capacity\s*charge(?!s)/i,150);
+  var networkCharge=numFrom(firstMatch(text,[/total\s*network\s*charge\s*£?\s*([\d,]+\.\d{2})/i,/total\s*duos\s*charge\s*£?\s*([\d,]+\.\d{2})/i]));
+  var agentCharge=firstMoneyAfter(/agent\s*services/i,80);
+  var mopChargeMoney=firstMoneyAfter(/meter\s*operator/i,80);
+  var mopChargeBare=numFrom(firstMatch(text,[/meter\s*operator\s*charge\s*([\d,]+\.\d{2})/i]));
+  var mopCharge=mopChargeMoney!==null?mopChargeMoney:mopChargeBare;
+  // SSE-specific bundled items: available capacity is a bare 3-number row (qty, rate,
+  // amount) rather than a £-prefixed line; feed-in tariff is a per-kWh government levy
+  // charge; monthly charge is a flat standing-charge equivalent used only when the
+  // p/day "Standing charge at..." line above wasn't found, to avoid double-counting.
+  var sseCapacityM=text.match(/available\s*capacity\s+[\d.]+\s+[\d.]+\s+([\d,]+\.\d{2})/i);
+  var sseCapacity=sseCapacityM?numFrom(sseCapacityM[1]):null;
+  var sseFitM=text.match(/feed\s*in\s*tariff\s*charge\s*-?[\d,.]+\s*[\d.]+\s*([\d,]+\.\d{2})/i);
+  var sseFit=sseFitM?numFrom(sseFitM[1]):null;
+  var sseMonthly=null;
+  if(f.standing===null){
+    var mM=text.match(/monthly\s*charge\s*([\d,]+\.\d{2})/i);
+    sseMonthly=mM?numFrom(mM[1]):null;
+  }
+  var bundled=[capacityCharge,networkCharge,agentCharge,mopCharge,sseCapacity,sseFit,sseMonthly].filter(function(v){return v!==null;});
+  f.otherCharges=bundled.length?Math.round(bundled.reduce(function(a,b){return a+b;},0)*100)/100:null;
+  f.otherChargesBreakdown={capacity:capacityCharge||sseCapacity,network:networkCharge,agent:agentCharge,mop:mopCharge,feedInTariff:sseFit,monthlyCharge:sseMonthly};
+
+  // Government energy support scheme credits (e.g. the Energy Bill Relief Scheme /
+  // Energy Bills Discount Scheme, active winter 2022/23) show up as a large negative
+  // line — these genuinely reduce the bill and should be netted off the expected total,
+  // unlike the "CR" line itself which was correctly excluded from the kWh count above.
+  f.govRelief=numFrom(firstMatch(text,[
+    /energy\s*bill(?:s)?\s*(?:relief|discount)\s*scheme[\s\S]{0,150}?-£\s*([\d,]+\.\d{2})/i,
+    /energy\s*bill(?:s)?\s*(?:relief|discount)\s*scheme[\s\S]{0,150}?£\s*([\d,]+\.\d{2})\s*CR/i
+  ]));
+
+  // Some suppliers (SSE) send a single PDF as a "statement" bundling several separate
+  // invoices for different sites/periods. Regex extraction picks up figures from
+  // wherever they first appear in the flattened text, so on a multi-invoice statement
+  // the result is not reliably any single one of those invoices — flagged so it's never
+  // silently treated as a normal single-invoice extraction.
+  var enclosedM=text.match(/number\s*of\s*invoice\(s\)\s*enclosed\s*(\d+)/i);
+  var totalBlockCount=(text.match(/total\s*this\s*invoice\s*[\d,]+\.\d{2}/gi)||[]).length;
+  f.multiInvoiceStatement=!!(enclosedM&&parseInt(enclosedM[1],10)>1)||totalBlockCount>1;
+
+  return f;
 }
-function handleNewClientContract(e){
-  if(!e.target.files.length) return;
-  newClientContractName=e.target.files[0].name;
-  document.getElementById('newClientContractLabel').textContent='✓ '+newClientContractName;
+
+function parseContractFields(text){
+  var f={};
+  f.unitrate=numFrom(firstMatch(text,[/unit\s*rate\s*[:\-]?\s*([\d.]+)\s*p(?:ence)?\s*\/?\s*kwh/i,/([\d.]+)\s*p(?:ence)?\s*\/\s*kwh/i]));
+  f.standing=numFrom(firstMatch(text,[/standing\s*charge[\s\S]{0,150}?([\d]+\.[\d]+)\s*p\s*\/?\s*day/i,/standing\s*charge\s*[:\-]?\s*([\d.]+)\s*p(?:ence)?/i]));
+  f.start=firstDate(text,[new RegExp('contract\\s*(?:start|commencement)\\s*(?:date)?\\s*[:\\-]?\\s*'+DATECHUNK,'i')]);
+  f.end=firstDate(text,[new RegExp('contract\\s*(?:end|expiry)\\s*(?:date)?\\s*[:\\-]?\\s*'+DATECHUNK,'i')]);
+  return f;
 }
-function addClient(){
-  var n=document.getElementById('newClientName').value||'New Client';
-  var cols=['#52b043','#5b9bd5','#e0a030','#e05252','#a78bfa'];
-  clients.push({name:n,sector:'Other',sites:1,invoices:0,errors:0,color:cols[clients.length%cols.length],initials:n.split(' ').map(function(w){return w[0];}).join('').substring(0,2).toUpperCase(),contract:newClientContractName});
-  renderClients();closeModal();
+
+function setVal(id,v){var el=document.getElementById(id);if(el&&v!==null&&v!==undefined&&v!=='')el.value=v;}
+
+function processUploadedFile(file,type){
+  if(type==='contract'){
+    var cs=document.getElementById('contract-status'),msg=document.getElementById('contract-msg');
+    msg.innerHTML='Reading <strong>'+file.name+'</strong>…';cs.style.display='flex';
+    extractPdfText(file).then(function(text){
+      document.getElementById('contract-raw-text').value=text;
+      document.getElementById('contract-raw-wrap').style.display='block';
+      var f=parseContractFields(text);
+      setVal('c-unitrate',f.unitrate);setVal('c-standing',f.standing);setVal('c-start',f.start);setVal('c-end',f.end);
+      var found=[f.unitrate&&'unit rate',f.standing&&'standing charge',f.start&&'start date',f.end&&'end date'].filter(Boolean);
+      msg.innerHTML='Contract <strong>'+file.name+'</strong> read. '+(found.length?'Auto-filled: '+found.join(', ')+'. Please verify against the document.':'Could not confidently auto-extract terms — please enter them manually below.');
+    }).catch(function(err){
+      msg.innerHTML='Contract <strong>'+file.name+'</strong> uploaded, but text could not be extracted automatically ('+err.message+'). Please enter contract terms manually below.';
+    });
+    return;
+  }
+  var prog=document.getElementById('upload-progress'),fill=document.getElementById('prog-fill'),lbl=document.getElementById('prog-label'),title=document.getElementById('prog-title');
+  prog.style.display='block';title.textContent='Reading invoice…';fill.style.width='15%';fill.className='pf amb';lbl.textContent='Extracting text from PDF…';
+  extractPdfText(file).then(function(text){
+    fill.style.width='60%';lbl.textContent='Parsing fields…';
+    document.getElementById('invoice-raw-text').value=text;
+    document.getElementById('invoice-raw-wrap').style.display='block';
+    var f=parseInvoiceFields(text);
+    setVal('f-invnum',f.invnum);setVal('f-mpan',f.mpan||f.mprn);setVal('f-invdate',f.invdate);
+    setVal('f-acctref',f.acctref);
+    setVal('f-siteaddress',f.supplyaddress);
+    setVal('f-pstart',f.pstart);setVal('f-pend',f.pend);setVal('f-kwh',f.kwh);setVal('f-unitrate',f.unitrate);
+    setVal('f-standing',f.standing);setVal('f-ccl',f.ccl);setVal('f-vat',f.vat);setVal('f-total',f.total);setVal('f-supplier',f.supplier);
+    setVal('f-vatrate',f.vatratepct!==null?f.vatratepct:20);
+    setVal('f-other',f.otherCharges);
+    setVal('f-govrelief',f.govRelief);
+    if(f.cclExemptHint){document.getElementById('f-cclexempt').checked=true;}
+    if(f.utype){var sel=document.getElementById('f-utype');for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===f.utype)sel.selectedIndex=i;}}
+    fill.style.width='100%';fill.className='pf grn';
+    var found=['invnum','acctref','supplyaddress','mpan','invdate','pstart','kwh','unitrate','standing','vat','total'].filter(function(k){return f[k];});
+    lbl.textContent='Done — auto-filled '+found.length+' of 11 key fields.';
+    var es=document.getElementById('invoice-extract-status'),em=document.getElementById('invoice-extract-msg');
+    es.style.display='flex';
+    var msgText=found.length>=8
+      ? 'Extracted <strong>'+found.length+' of 11</strong> key fields from '+file.name+'. Review the confirm form on the right — line up every figure against the PDF before running validation.'
+      : 'Only extracted <strong>'+found.length+' of 11</strong> key fields confidently from '+file.name+' — this invoice layout is less standard. Fill in the remaining fields manually from the document before running validation.';
+    if(f.multiRate){
+      msgText+=' <strong>Note:</strong> this invoice bills electricity at more than one rate (e.g. day/night or seasonal bands) — the unit rate shown is a consumption-weighted average across all bands, not a single rate printed on the invoice, so double-check it against the individual band rates before relying on it.';
+    }
+    if(f.hasCreditAdjustment){
+      msgText+=' <strong>⚠ Credit/reversal line detected:</strong> this invoice contains a "CR" adjustment line that was excluded from the kWh total (it likely reverses an earlier estimated or incorrect reading). This is common on reissued invoices, but it means the true billed consumption may need manual verification against the PDF — Volt IVR only counted the non-credit bands.';
+    }
+    if(f.isCreditNote){
+      msgText+=' <strong>🚨 This looks like a credit note, not a normal bill.</strong> The figures extracted may represent a refund/reversal rather than a charge — check the PDF carefully before running validation, and consider whether this document belongs in your invoice records at all rather than as a bill to validate.';
+    }
+    if(f.multiInvoiceStatement){
+      msgText+=' <strong>🚨 This PDF appears to bundle more than one invoice</strong> (a multi-invoice statement, or a reissue alongside historical detail). Volt IVR extracted whichever figures it found first in the document — they may not all belong to the same invoice. Please verify every field very carefully against the PDF, or better, split this document into one invoice per file before uploading.';
+    }
+    if(f.vatratepct!==null&&f.vatratepct!==20){
+      msgText+=' <strong>VAT rate:</strong> detected/implied at '+f.vatratepct+'% (not the standard 20%) and pre-filled accordingly — please confirm this against the invoice\'s VAT analysis section.';
+    }
+    if(f.cclExemptHint){
+      msgText+=' <strong>CCL:</strong> this invoice appears to carry a VAT relief declaration, so "CCL exempt" has been pre-checked — please confirm this is correct before running validation, as it is a suggestion, not a certainty.';
+    } else if(!f.ccl){
+      msgText+=' No separate CCL charge was found and no exemption declaration was detected — if this account is actually CCL-exempt, tick the CCL exempt box before running validation.';
+    }
+    if(f.otherCharges){
+      var bd=f.otherChargesBreakdown,parts=[];
+      if(bd.capacity)parts.push('capacity '+money(bd.capacity));
+      if(bd.network)parts.push('network '+money(bd.network));
+      if(bd.agent)parts.push('agent '+money(bd.agent));
+      if(bd.mop)parts.push('meter operator '+money(bd.mop));
+      msgText+=' <strong>Other charges:</strong> found '+money(f.otherCharges)+' in charges the core model doesn\'t itemise ('+parts.join(', ')+') and added them to "Other charges" so the total recalculation includes them.';
+    }
+    em.innerHTML=msgText;
+  }).catch(function(err){
+    fill.style.width='100%';fill.className='pf red';lbl.textContent='Could not read PDF text ('+err.message+').';
+    var es=document.getElementById('invoice-extract-status'),em=document.getElementById('invoice-extract-msg');
+    es.style.display='flex';em.innerHTML='Couldn\'t extract text from <strong>'+file.name+'</strong> — it may be a scanned image rather than a text PDF. Please enter the figures manually in the form on the right.';
+  });
+}
+
+function clearUploadForm(){
+  ['f-invnum','f-mpan','f-supplier','f-acctref','f-siteaddress','f-kwh','f-unitrate','f-standing','f-ccl','f-vat','f-other','f-govrelief','f-total','f-invdate','f-pstart','f-pend','c-unitrate','c-standing','c-start','c-end'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.value='';
+  });
+  document.getElementById('f-vatrate').value='20';
+  document.getElementById('f-cclexempt').checked=false;
+  document.getElementById('invoice-extract-status').style.display='none';
+  document.getElementById('invoice-raw-wrap').style.display='none';
+  document.getElementById('contract-status').style.display='none';
+  document.getElementById('contract-raw-wrap').style.display='none';
+  document.getElementById('run-validation-error').style.display='none';
+}
+
+var CCL_RATES={'Electricity':0.775,'Gas':0.2685,'Water':0};
+
+function money(n){return '£'+n.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+// Pure calculation engine — takes a normalized fields object, returns check results.
+// Shared by both the single-invoice form (runRealValidation) and bulk processing,
+// so there is exactly one place that defines "how Volt IVR calculates a bill" —
+// the two flows can never silently disagree with each other.
+function computeValidationResults(f){
+  var kwh=f.kwh,unitrate=f.unitrate,vat=f.vat,total=f.total,utype=f.utype||'Electricity';
+  // Defensive guard: callers (runRealValidation, bulk processing) already validate these
+  // are present before calling this function — this is a second line of defence so a
+  // missing figure can never produce a crash or a silently wrong calculation.
+  if(kwh===null||kwh===undefined||unitrate===null||unitrate===undefined||vat===null||vat===undefined||total===null||total===undefined){
+    return {results:[{id:1,name:'Insufficient Data',cat:'Data Quality',status:'error',
+      detail:'Cannot calculate — one or more required figures (kWh, unit rate, VAT, or total cost) is missing. This invoice should have been routed to manual review rather than reaching the calculation engine.'}],
+      errN:1,warnN:0,passN:0,overcharge:0,days:0};
+  }
+  var standing=f.standing===null||f.standing===undefined?0:f.standing;
+  var ccl=f.ccl===null||f.ccl===undefined?0:f.ccl;
+  var vatRatePct=(f.vatRatePct===null||f.vatRatePct===undefined||f.vatRatePct<0)?20:f.vatRatePct;
+  var otherCharges=f.otherCharges===null||f.otherCharges===undefined?0:f.otherCharges;
+  var govRelief=f.govRelief===null||f.govRelief===undefined?0:f.govRelief;
+  var cclExempt=!!f.cclExempt;
+  var pstart=f.pstart,pend=f.pend;
+  var days=null;
+  if(pstart&&pend){var d1=new Date(pstart),d2=new Date(pend);days=Math.round((d2-d1)/86400000)+1;if(days<=0||days>400)days=null;}
+  if(!days)days=90;
+
+  var results=[];
+  var idc=1;
+  var overcharge=0;
+
+  var energyCost=kwh*unitrate/100;
+  var standingCost=standing/100*days;
+  var expectedTotalExVat=energyCost+standingCost+ccl+otherCharges-govRelief;
+  var expectedTotal=expectedTotalExVat+vat;
+  var totalDiff=total-expectedTotal;
+  results.push({id:idc++,name:'Total Cost Recalculation',cat:'Financial',
+    status:Math.abs(totalDiff)<=0.5?'pass':Math.abs(totalDiff)<=10?'warning':'error',
+    detail:'Recalculated from confirmed figures: '+kwh.toLocaleString()+' kWh × '+unitrate+'p + standing charge ('+standing+'p × '+days+' days) + '+money(ccl)+' CCL'+(otherCharges?' + '+money(otherCharges)+' other charges (capacity/network/agent/MOP)':'')+(govRelief?' − '+money(govRelief)+' government energy relief credit':'')+' + '+money(vat)+' VAT = '+money(expectedTotal)+'. Billed: '+money(total)+'. Difference: '+(totalDiff>=0?'+':'')+money(totalDiff)+ (days?'. (Billing period assumed '+days+' days'+(pstart&&pend?'':' — no period dates entered, default used')+'.)':'')+(otherCharges?'':' (No "other charges" entered — if this invoice includes capacity/kVA, network, agent or meter-operator fees not covered by the fields above, add their total to "Other charges" for an accurate recalculation.)')});
+  if(totalDiff>0)overcharge+=totalDiff;
+
+  var expectedVat=expectedTotalExVat*(vatRatePct/100);
+  var vatDiff=vat-expectedVat;
+  results.push({id:idc++,name:'VAT Recalculation',cat:'Tax & Levy',
+    status:Math.abs(vatDiff)<=0.5?'pass':Math.abs(vatDiff)<=5?'warning':'error',
+    detail:'Expected VAT at '+vatRatePct+'% on '+money(expectedTotalExVat)+' net = '+money(expectedVat)+'. Billed VAT: '+money(vat)+'. Difference: '+(vatDiff>=0?'+':'')+money(vatDiff)+'. (Using the VAT rate entered above — confirm it matches the rate shown in the invoice\'s VAT analysis section.)'});
+  if(vatDiff>0)overcharge+=vatDiff;
+
+  if(cclExempt){
+    results.push({id:idc++,name:'Climate Change Levy Check',cat:'Tax & Levy',status:ccl===0?'pass':'warning',
+      detail:'Marked as CCL exempt / relief declared. '+(ccl===0?'No CCL was billed, consistent with exemption.':'£'+ccl.toFixed(2)+' CCL was billed despite being marked exempt — worth double-checking against the invoice.')});
+  } else if(utype==='Electricity'||utype==='Gas'){
+    var cclRate=CCL_RATES[utype];
+    var expectedCcl=kwh*cclRate/100;
+    var cclDiff=ccl-expectedCcl;
+    results.push({id:idc++,name:'Climate Change Levy Check',cat:'Tax & Levy',
+      status:Math.abs(cclDiff)<=0.5?'pass':Math.abs(cclDiff)<=5?'warning':'error',
+      detail:'Expected CCL at main rate '+cclRate+'p/kWh × '+kwh.toLocaleString()+' kWh = '+money(expectedCcl)+'. Billed CCL: '+money(ccl)+'. Difference: '+(cclDiff>=0?'+':'')+money(cclDiff)+'. (Uses the main CCL rate — if this account holds a CCL exemption/reduction certificate, tick "CCL exempt" instead of relying on this check.)'});
+    if(cclDiff>0)overcharge+=cclDiff;
+  } else {
+    results.push({id:idc++,name:'Climate Change Levy Check',cat:'Tax & Levy',status:'pass',detail:'CCL does not apply to water supplies — skipped.'});
+  }
+
+  var cUnit=f.cUnit,cStanding=f.cStanding,cStart=f.cStart,cEnd=f.cEnd;
+  if(cUnit!==null&&cUnit!==undefined){
+    var rateDiff=unitrate-cUnit;
+    var rateImpact=rateDiff*kwh/100;
+    results.push({id:idc++,name:'Contract Unit Rate Check',cat:'Tariff',
+      status:Math.abs(rateDiff)<=0.01?'pass':Math.abs(rateDiff)<=0.2?'warning':'error',
+      detail:'Contract rate: '+cUnit+'p/kWh. Billed rate: '+unitrate+'p/kWh. Difference: '+(rateDiff>=0?'+':'')+rateDiff.toFixed(3)+'p/kWh × '+kwh.toLocaleString()+' kWh = '+(rateImpact>=0?'+':'')+money(rateImpact)+' impact on this invoice.'});
+    if(rateImpact>0)overcharge+=rateImpact;
+  } else {
+    results.push({id:idc++,name:'Contract Unit Rate Check',cat:'Tariff',status:'warning',detail:'No contract unit rate entered — upload the supply contract or enter its rate manually to enable this check.'});
+  }
+  if(cStanding!==null&&cStanding!==undefined){
+    var stDiff=standing-cStanding;
+    var stImpact=stDiff/100*days;
+    results.push({id:idc++,name:'Contract Standing Charge Check',cat:'Tariff',
+      status:Math.abs(stDiff)<=0.01?'pass':Math.abs(stDiff)<=1?'warning':'error',
+      detail:'Contract standing charge: '+cStanding+'p/day. Billed: '+standing+'p/day. Difference: '+(stDiff>=0?'+':'')+stDiff.toFixed(3)+'p/day × '+days+' days = '+(stImpact>=0?'+':'')+money(stImpact)+' impact.'});
+    if(stImpact>0)overcharge+=stImpact;
+  } else {
+    results.push({id:idc++,name:'Contract Standing Charge Check',cat:'Tariff',status:'warning',detail:'No contract standing charge entered — upload the supply contract or enter it manually to enable this check.'});
+  }
+  if(cStart&&cEnd&&pstart){
+    var withinTerm=pstart>=cStart&&pstart<=cEnd;
+    results.push({id:idc++,name:'Billing Period vs Contract Term',cat:'Account Matching',
+      status:withinTerm?'pass':'error',
+      detail:'Contract term: '+cStart+' to '+cEnd+'. Invoice period starts '+pstart+'. '+(withinTerm?'Falls within the contract term.':'Falls OUTSIDE the contract term — invoice may be on out-of-contract (deemed) rates, which are typically much higher.')});
+  }
+
+  results.push({id:idc++,name:'Consumption Present',cat:'Consumption',status:kwh>0?'pass':'error',detail:kwh>0?'Consumption of '+kwh.toLocaleString()+' kWh recorded for the period.':'Zero or missing consumption recorded — cannot validate a zero-usage bill.'});
+
+  var errN=results.filter(function(r){return r.status==='error';}).length;
+  var warnN=results.filter(function(r){return r.status==='warning';}).length;
+  var passN=results.filter(function(r){return r.status==='pass';}).length;
+  return {results:results,errN:errN,warnN:warnN,passN:passN,overcharge:overcharge,days:days};
+}
+
+// Side effects only: writes one validated invoice into the app-wide invoices/sites/
+// consumption data so Dashboard, Invoice Library, Site Register and Consumption Profile
+// all reflect it — used by both the single-invoice flow and bulk processing.
+function persistInvoiceResult(meta,calc){
+  var typeMap={'Electricity':{type:'elec',icon:'⚡'},'Gas':{type:'gas',icon:'🔥'},'Water':{type:'water',icon:'💧'}};
+  var tinfo=typeMap[meta.utype]||typeMap['Electricity'];
+  var dateLabel=meta.invdate?new Date(meta.invdate).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'(no date entered)';
+  var siteName=meta.siteaddress||meta.acctref;
+  var invEntry={id:meta.invnum,site:siteName,type:tinfo.type,icon:tinfo.icon,supplier:meta.supplier,date:dateLabel,amount:money(meta.total),errors:calc.errN,warnings:calc.warnN,passed:calc.passN,overcharge:calc.overcharge};
+  var existingIdx=invoices.findIndex(function(i){return i.id===meta.invnum;});
+  if(existingIdx>=0)invoices[existingIdx]=invEntry;else invoices.unshift(invEntry);
+
+  var acctEntry={ref:meta.acctref,site:siteName,mpan:meta.mpan||'—',type:meta.utype,supplier:meta.supplier,tariff:'—',contract:meta.hasContract?'Loaded':'—',status:'Active'};
+  var acctIdx=accounts.findIndex(function(a){return a.ref===meta.acctref;});
+  if(acctIdx>=0)accounts[acctIdx]=acctEntry;else accounts.push(acctEntry);
+
+  if(meta.invdate){
+    var mLabel=new Date(meta.invdate).toLocaleDateString('en-GB',{month:'short',year:'2-digit'});
+    var cIdx=consData.findIndex(function(d){return d.m===mLabel;});
+    if(cIdx>=0)consData[cIdx].kwh=meta.kwh;else consData.push({m:mLabel,kwh:meta.kwh});
+    baseline=consData.reduce(function(s,d){return s+d.kwh;},0)/consData.length;
+  }
+}
+
+function runRealValidation(){
+  var g=function(id){var el=document.getElementById(id);return el?el.value:'';};
+  var num=function(id){var v=parseFloat(g(id));return isNaN(v)?null:v;};
+  var kwh=num('f-kwh'),unitrate=num('f-unitrate'),standing=num('f-standing'),ccl=num('f-ccl'),vat=num('f-vat'),total=num('f-total');
+  var vatRatePct=num('f-vatrate'),otherCharges=num('f-other'),govRelief=num('f-govrelief');
+  var cclExempt=document.getElementById('f-cclexempt').checked;
+  var utype=g('f-utype'),invnum=g('f-invnum')||'(no invoice number entered)',acctref=g('f-acctref')||'(no account ref)',supplier=g('f-supplier')||'(no supplier entered)';
+  var pstart=g('f-pstart'),pend=g('f-pend');
+  var errEl=document.getElementById('run-validation-error'),errMsg=document.getElementById('run-validation-error-msg');
+  var missing=[];
+  if(kwh===null)missing.push('Total kWh');
+  if(unitrate===null)missing.push('Unit rate billed');
+  if(total===null)missing.push('Total cost billed');
+  if(vat===null)missing.push('Total VAT');
+  if(missing.length){
+    errEl.style.display='flex';errMsg.innerHTML='Can\'t run a real calculation without: <strong>'+missing.join(', ')+'</strong>. Fill these in from the invoice (or enter your best figure) and try again.';
+    return;
+  }
+  errEl.style.display='none';
+  var cUnit=num('c-unitrate'),cStanding=num('c-standing'),cStart=g('c-start'),cEnd=g('c-end');
+  var f={kwh:kwh,unitrate:unitrate,standing:standing,ccl:ccl,vat:vat,total:total,vatRatePct:vatRatePct,otherCharges:otherCharges,govRelief:govRelief,cclExempt:cclExempt,utype:utype,pstart:pstart,pend:pend,cUnit:cUnit,cStanding:cStanding,cStart:cStart,cEnd:cEnd};
+  var calc=computeValidationResults(f);
+
+  checks=calc.results;
+  currentInvoiceMeta={invnum:invnum,acctref:acctref,supplier:supplier};
+  lastOvercharge=calc.overcharge;
+  calc.results.forEach(function(r){allChecks.push({cat:r.cat,status:r.status,invId:invnum});});
+  contractChecks=calc.results.filter(function(r){return r.cat==='Tariff';}).map(function(r){
+    return {label:r.name,contract:'see detail',billed:'see detail',vari:r.status==='pass'?'—':'variance found',status:r.status,detail:r.detail};
+  });
+
+  persistInvoiceResult({invnum:invnum,acctref:acctref,supplier:supplier,utype:utype,mpan:g('f-mpan'),invdate:g('f-invdate'),total:total,kwh:kwh,hasContract:cUnit!==null,siteaddress:g('f-siteaddress')},calc);
+
+  document.getElementById('validation-subtitle').textContent=invnum+' | '+acctref+' | '+supplier;
+  document.getElementById('validation-real-banner').style.display='flex';
+  document.getElementById('stat-errors').textContent=calc.errN;
+  document.getElementById('stat-warnings').textContent=calc.warnN;
+  document.getElementById('stat-passed').textContent=calc.passN;
+  document.getElementById('stat-overcharge').textContent=calc.overcharge>0?money(calc.overcharge):'£0.00';
+  document.getElementById('tab-flagged-n').textContent=calc.errN+calc.warnN;
+  document.getElementById('tab-errors-n').textContent=calc.errN;
+  document.getElementById('tab-warnings-n').textContent=calc.warnN;
+  document.getElementById('tab-passed-n').textContent=calc.passN;
+
+  renderDashboard();
+  renderInvoiceLibrary();
+  renderAccounts();
+  renderConsumption();
+  renderBilling();
+  renderSpendStatus();
+  updateGlobalStats();
+
+  showPage('validation',null);
+  switchTabByFilter('flagged');
+}
+
+// ---------- Bulk upload & reconciliation ----------
+var bulkBatch=[];
+var bulkOrderedView=[];
+
+function handleBulkFileSelect(e){processBulkFiles(Array.prototype.slice.call(e.target.files));}
+function handleBulkDrop(e){
+  e.preventDefault();
+  document.getElementById('bulk-dropzone').classList.remove('drag');
+  processBulkFiles(Array.prototype.slice.call(e.dataTransfer.files));
+}
+
+function processBulkFiles(files){
+  files=files.filter(function(f){return f.type==='application/pdf'||/\.pdf$/i.test(f.name);});
+  if(!files.length)return;
+  var prog=document.getElementById('bulk-progress'),fill=document.getElementById('bulk-prog-fill'),lbl=document.getElementById('bulk-prog-label'),title=document.getElementById('bulk-prog-title');
+  prog.style.display='block';fill.className='pf amb';
+
+  // Contract terms currently entered on Upload Documents apply to the whole batch —
+  // bulk mode doesn't ask per-file, so review these once before uploading a batch.
+  var g=function(id){var el=document.getElementById(id);return el?el.value:'';};
+  var cUnitVal=g('c-unitrate'),cStandingVal=g('c-standing'),cStart=g('c-start'),cEnd=g('c-end');
+  var cUnit=cUnitVal?parseFloat(cUnitVal):null,cStanding=cStandingVal?parseFloat(cStandingVal):null;
+
+  var i=0;
+  function next(){
+    if(i>=files.length){finishBulk();return;}
+    var file=files[i];
+    title.textContent='Processing '+(i+1)+' of '+files.length+'…';
+    fill.style.width=Math.round((i/files.length)*100)+'%';
+    lbl.textContent='Reading '+file.name+'…';
+    extractPdfText(file).then(function(text){
+      var f=parseInvoiceFields(text);
+      var entry={file:file.name,f:f};
+      var requiredOk=f.kwh!==null&&f.unitrate!==null&&f.total!==null&&f.vat!==null&&!f.isCreditNote&&!f.multiInvoiceStatement;
+      if(requiredOk){
+        var calcInput={kwh:f.kwh,unitrate:f.unitrate,standing:f.standing,ccl:f.ccl,vat:f.vat,total:f.total,vatRatePct:f.vatratepct,otherCharges:f.otherCharges,govRelief:f.govRelief,cclExempt:f.cclExemptHint,utype:f.utype,pstart:f.pstart,pend:f.pend,cUnit:cUnit,cStanding:cStanding,cStart:cStart,cEnd:cEnd};
+        var calc=computeValidationResults(calcInput);
+        entry.calc=calc;
+        entry.needsReview=false;
+        var meta={invnum:f.invnum||file.name,acctref:f.acctref||'(unknown account)',supplier:f.supplier||'(unknown supplier)',utype:f.utype,mpan:f.mpan||f.mprn,invdate:f.invdate,total:f.total,kwh:f.kwh,hasContract:cUnit!==null,siteaddress:f.supplyaddress};
+        entry.meta=meta;
+        persistInvoiceResult(meta,calc);
+        calc.results.forEach(function(r){allChecks.push({cat:r.cat,status:r.status,invId:meta.invnum});});
+      } else {
+        entry.needsReview=true;
+        entry.missingFields=['Total kWh','Unit rate','Total cost billed','Total VAT'].filter(function(_,idx){
+          var keys=['kwh','unitrate','total','vat'];return f[keys[idx]]===null||f[keys[idx]]===undefined;
+        });
+        if(f.isCreditNote)entry.missingFields.push('looks like a credit note, not a bill');
+        if(f.multiInvoiceStatement)entry.missingFields.push('PDF bundles more than one invoice');
+      }
+      bulkBatch.push(entry);
+      i++;next();
+    }).catch(function(err){
+      bulkBatch.push({file:file.name,error:err.message,needsReview:true,missingFields:[]});
+      i++;next();
+    });
+  }
+  next();
+}
+
+function finishBulk(){
+  var fill=document.getElementById('bulk-prog-fill'),lbl=document.getElementById('bulk-prog-label');
+  fill.style.width='100%';fill.className='pf grn';
+  lbl.textContent='Done — processed '+bulkBatch.length+' file(s) this session.';
+  renderBulkResults();
+  renderDashboard();renderInvoiceLibrary();renderAccounts();renderConsumption();renderBilling();renderSpendStatus();updateGlobalStats();
+}
+
+var bulkFilter='all';
+function filterBulk(type){
+  bulkFilter=type;
+  renderBulkResults();
+  var t=document.getElementById('bulk-results-table');
+  if(t)t.closest('.card').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function renderBulkResults(){
+  document.getElementById('bulk-summary-cards').style.display='grid';
+  document.getElementById('bulk-results-card').style.display='block';
+  var count=bulkBatch.length;
+  var review=bulkBatch.filter(function(b){return b.needsReview;}).length;
+  var issues=0,recovery=0;
+  bulkBatch.forEach(function(b){if(b.calc){issues+=b.calc.errN+b.calc.warnN;recovery+=b.calc.overcharge;}});
+  document.getElementById('bulk-stat-count').textContent=count;
+  document.getElementById('bulk-stat-review').textContent=review;
+  document.getElementById('bulk-stat-issues').textContent=issues;
+  document.getElementById('bulk-stat-recovery').textContent=money(recovery);
+
+  var valid=bulkBatch.filter(function(b){return !b.needsReview&&b.f&&b.f.pstart;});
+  var rest=bulkBatch.filter(function(b){return b.needsReview||!b.f||!b.f.pstart;});
+  valid.sort(function(a,b){return a.f.pstart<b.f.pstart?-1:a.f.pstart>b.f.pstart?1:0;});
+  bulkOrderedView=valid.concat(rest);
+
+  var tag=document.getElementById('bulk-filter-tag'),label=document.getElementById('bulk-filter-label');
+  var rows=bulkOrderedView.map(function(b,idx){return {b:b,idx:idx};});
+  var labelText='';
+  if(bulkFilter==='review'){rows=rows.filter(function(r){return r.b.needsReview;});labelText='Needs review';}
+  else if(bulkFilter==='issues'){rows=rows.filter(function(r){return !r.b.needsReview&&r.b.calc&&(r.b.calc.errN+r.b.calc.warnN)>0;});labelText='Has errors/warnings';}
+  else if(bulkFilter==='overcharge'){rows=rows.filter(function(r){return !r.b.needsReview&&r.b.calc&&r.b.calc.overcharge>0;});labelText='Has est. recovery';}
+  if(bulkFilter==='all'){tag.style.display='none';}
+  else{tag.style.display='flex';label.textContent=labelText+' ('+rows.length+')';}
+
+  document.getElementById('bulk-results-table').innerHTML=rows.length?rows.map(function(r){
+    var b=r.b,idx=r.idx;
+    if(b.needsReview){
+      var reason=b.error?('could not read PDF — '+b.error):('missing: '+(b.missingFields||[]).join(', ')||'low-confidence extraction');
+      return '<tr style="opacity:.65"><td colspan="8" style="color:var(--tx3)">'+b.file+' — needs manual review ('+reason+')</td><td><span class="badge warning">Review</span></td></tr>';
+    }
+    var f=b.f,calc=b.calc;
+    var statusBadge=calc.errN>0?'<span class="badge error">'+calc.errN+' err</span>':calc.warnN>0?'<span class="badge warning">'+calc.warnN+' warn</span>':'<span class="badge pass">&#x2713; Pass</span>';
+    return '<tr class="check-row" style="cursor:pointer" onclick="viewBulkEntry('+idx+')"><td>'+(f.pstart||'?')+' → '+(f.pend||'?')+'</td><td>'+(f.invnum||'—')+'</td><td>'+(f.supplier||'—')+'</td><td>'+(f.kwh?f.kwh.toLocaleString():'—')+'</td><td>'+(f.total?money(f.total):'—')+'</td><td>'+calc.errN+'</td><td>'+calc.warnN+'</td><td>'+(calc.overcharge>0?money(calc.overcharge):'—')+'</td><td>'+statusBadge+'</td></tr>';
+  }).join(''):'<tr><td colspan="9">'+emptyState('✓','Nothing in this filter','No batch results matched this filter.',null,null)+'</td></tr>';
+
+  renderReconciliationAlerts(valid);
+}
+
+function renderReconciliationAlerts(validEntries){
+  var el=document.getElementById('bulk-recon-alerts');
+  if(!validEntries.length){el.innerHTML='';return;}
+  var groups={};
+  validEntries.forEach(function(b){var key=b.f.acctref||'(unknown account)';groups[key]=groups[key]||[];groups[key].push(b);});
+  var issues=[];
+  var seen={};
+  validEntries.forEach(function(b){var n=b.f.invnum;if(!n)return;seen[n]=(seen[n]||0)+1;});
+  Object.keys(seen).forEach(function(n){if(seen[n]>1)issues.push('Duplicate invoice number <strong>'+n+'</strong> appears '+seen[n]+' times in this batch — check for a re-upload or a genuinely reissued invoice.');});
+  validEntries.forEach(function(b){
+    if(b.f.hasCreditAdjustment)issues.push('<strong>'+(b.f.invnum||'?')+'</strong> contains a credit/reversal ("CR") line that was excluded from its kWh total — worth a manual check against the PDF, as this usually means the invoice was reissued or corrected.');
+  });
+  Object.keys(groups).forEach(function(key){
+    var arr=groups[key].slice().sort(function(a,b){return a.f.pstart<b.f.pstart?-1:a.f.pstart>b.f.pstart?1:0;});
+    for(var i=1;i<arr.length;i++){
+      if(!arr[i-1].f.pend)continue;
+      var prevEnd=new Date(arr[i-1].f.pend),curStart=new Date(arr[i].f.pstart);
+      var gapDays=Math.round((curStart-prevEnd)/86400000);
+      if(gapDays>1){
+        issues.push('Gap of '+(gapDays-1)+' day(s) on <strong>'+key+'</strong> between '+(arr[i-1].f.invnum||'?')+' (ends '+arr[i-1].f.pend+') and '+(arr[i].f.invnum||'?')+' (starts '+arr[i].f.pstart+') — a billing period may be missing from this batch.');
+      } else if(gapDays<1){
+        issues.push('Overlap on <strong>'+key+'</strong> between '+(arr[i-1].f.invnum||'?')+' (ends '+arr[i-1].f.pend+') and '+(arr[i].f.invnum||'?')+' (starts '+arr[i].f.pstart+') — periods overlap, check for a duplicate or reissued invoice.');
+      }
+    }
+  });
+  if(!issues.length){
+    el.innerHTML='<div class="alert info"><span style="font-size:14px;flex-shrink:0">✅</span><div>Reconciliation check: no gaps, overlaps or duplicate invoice numbers found across the billing periods in this batch.</div></div>';
+  } else {
+    el.innerHTML='<div class="alert warning"><span style="font-size:14px;flex-shrink:0">🔗</span><div><strong>Reconciliation found '+issues.length+' issue'+(issues.length===1?'':'s')+':</strong><ul style="margin:6px 0 0 18px;padding:0">'+issues.map(function(i){return '<li style="margin-bottom:4px">'+i+'</li>';}).join('')+'</ul></div></div>';
+  }
+}
+
+function viewBulkEntry(idx){
+  var b=bulkOrderedView[idx];
+  if(!b||b.needsReview)return;
+  checks=b.calc.results;
+  currentInvoiceMeta={invnum:b.f.invnum||'(unknown)',acctref:b.f.acctref||'(unknown)',supplier:b.f.supplier||'(unknown)'};
+  lastOvercharge=b.calc.overcharge;
+  contractChecks=b.calc.results.filter(function(r){return r.cat==='Tariff';}).map(function(r){
+    return {label:r.name,contract:'see detail',billed:'see detail',vari:r.status==='pass'?'—':'variance found',status:r.status,detail:r.detail};
+  });
+  document.getElementById('validation-subtitle').textContent=currentInvoiceMeta.invnum+' | '+currentInvoiceMeta.acctref+' | '+currentInvoiceMeta.supplier;
+  document.getElementById('validation-real-banner').style.display='flex';
+  document.getElementById('stat-errors').textContent=b.calc.errN;
+  document.getElementById('stat-warnings').textContent=b.calc.warnN;
+  document.getElementById('stat-passed').textContent=b.calc.passN;
+  document.getElementById('stat-overcharge').textContent=b.calc.overcharge>0?money(b.calc.overcharge):'£0.00';
+  document.getElementById('tab-flagged-n').textContent=b.calc.errN+b.calc.warnN;
+  document.getElementById('tab-errors-n').textContent=b.calc.errN;
+  document.getElementById('tab-warnings-n').textContent=b.calc.warnN;
+  document.getElementById('tab-passed-n').textContent=b.calc.passN;
+  renderBilling();
+  showPage('validation',null);
+  switchTabByFilter('flagged');
 }
 </script>
 </body>
