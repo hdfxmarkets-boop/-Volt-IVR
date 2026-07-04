@@ -549,6 +549,23 @@ tr:hover td{background:rgba(82,176,67,.02)}
           <button class="btn btn-g" style="margin-top:8px">Save Notifications</button>
         </div>
       </div>
+      <div class="card">
+        <div class="sh" style="margin-bottom:6px">⚡ Deemed / Out-of-Contract Rate Reference</div>
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:14px;line-height:1.7">When a contract lapses, suppliers automatically bill at published "deemed" rates instead — these change periodically and aren't available via any lookup, so add them here from the supplier's published rate card as you come across them. Volt IVR uses these to check that a supplier is charging the <em>correct</em> deemed rate, not just that it differs from your old contract.</div>
+        <div style="overflow-x:auto">
+          <table><thead><tr><th>Supplier</th><th>Category</th><th>Effective from</th><th>Unit rate (p/kWh)</th><th>Standing (p/day)</th><th></th></tr></thead>
+          <tbody id="deemed-rate-table"></tbody></table>
+        </div>
+        <div class="fst" style="margin-top:16px">Add a reference rate</div>
+        <div class="fg">
+          <div class="fgrp"><label>Supplier</label><input type="text" id="dr-supplier" placeholder="e.g. npower"></div>
+          <div class="fgrp"><label>Category</label><input type="text" id="dr-category" placeholder="e.g. NHH/UMS, HH LV/HV"></div>
+          <div class="fgrp"><label>Effective from</label><input type="date" id="dr-effective"></div>
+          <div class="fgrp"><label>Unit rate (p/kWh)</label><input type="number" step="0.001" id="dr-unitrate" placeholder="e.g. 30.039"></div>
+          <div class="fgrp"><label>Standing charge (p/day)</label><input type="number" step="0.001" id="dr-standing" placeholder="e.g. 223.78"></div>
+        </div>
+        <button class="btn btn-g" onclick="addDeemedRate()">+ Add Reference Rate</button>
+      </div>
     </div>
 
   </div>
@@ -852,7 +869,7 @@ function renderAccounts(){
     return;
   }
   document.getElementById('account-table').innerHTML=accounts.map(function(a){
-    return '<tr><td style="font-weight:700;color:var(--g)">'+a.ref+'</td><td style="color:var(--tx)">'+a.site+'</td><td style="font-family:monospace;font-size:10px">'+a.mpan+'</td><td>'+a.type+'</td><td>'+a.supplier+'</td><td><span class="badge info">'+a.tariff+'</span></td><td><span class="badge purple">'+a.contract+'</span></td><td><span class="badge '+(a.status==='Active'?'pass':'error')+'">'+a.status+'</span></td></tr>';
+    return '<tr><td style="font-weight:700;color:var(--g)">'+a.ref+'</td><td style="color:var(--tx)">'+a.site+'</td><td style="font-family:monospace;font-size:10px">'+a.mpan+'</td><td>'+a.type+'</td><td>'+a.supplier+'</td><td><span class="badge info">'+a.tariff+'</span></td><td><span class="badge purple">'+a.contract+'</span></td><td><span class="badge '+(a.status==='Active'?'pass':a.status==='Out of Contract'?'warning':'error')+'">'+(a.status==='Out of Contract'?'⚠ Out of Contract':a.status)+'</span></td></tr>';
   }).join('');
 }
 
@@ -1018,6 +1035,7 @@ function doLogin(){
   renderInvoiceLibrary();
   renderConsumption();
   updateGlobalStats();
+  renderDeemedRates();
 }
 
 function showPage(id,el){
@@ -1128,6 +1146,11 @@ function parseEnergyBands(text){
     var qty=numFrom(m[1]),rate=numFrom(m[3]);
     if(qty!==null&&rate!==null&&qty>0){
       if(m[2]){creditBands++;continue;}
+      // A 0.00000 p/kWh "rate" almost always means this is a scheme/discount reference
+      // line (e.g. "Energy Bill Discount Scheme ... 0.00000 p/kWh") restating the
+      // period's total kWh for its own calculation basis, not a second real consumption
+      // band — counting it would silently double the true kWh total.
+      if(rate===0)continue;
       totalKwh+=qty;totalCost+=qty*rate;bands++;
     }
   }
@@ -1165,7 +1188,7 @@ function parseInvoiceFields(text){
     /site\s*reference\s*\/\s*invoice\s*number\s*[\dA-Za-z]+\s*\/\s*([\dA-Za-z\-]+)/i,
     /invoice\s*(?:no\.?|number|ref(?:erence)?)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\/]{3,})/i
   ]);
-  f.acctref=firstMatch(text,[/account\s*(?:number|ref(?:erence)?|no\.?)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,19}(?: [A-Za-z0-9]{2,10})?)/i]);
+  f.acctref=firstMatch(text,[/account\s*(?:number|ref(?:erence)?|no\.?)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,19}(?: [0-9]{2,10})?)/i]);
   if(f.acctref)f.acctref=f.acctref.replace(/\s+/g,'');
   f.mpan=firstMatch(text,[/MPAN\s*[:\-]?\s*([0-9\s]{10,25})/i]);
   if(f.mpan)f.mpan=f.mpan.replace(/\s+/g,'').trim();
@@ -1406,7 +1429,54 @@ function clearUploadForm(){
 
 var CCL_RATES={'Electricity':0.775,'Gas':0.2685,'Water':0};
 
+// Deemed / out-of-contract rate reference — suppliers publish these periodically (they're
+// what a customer is automatically billed at once a fixed-term contract lapses or supply
+// starts without an agreed contract). These change every few months and aren't available
+// via any API, so this is a small user-maintained reference table rather than something
+// Volt IVR can look up automatically. Seeded with npower's published NHH/UMS deemed rates
+// as a real starting example — add more via Settings as you come across published rate
+// cards for other suppliers, categories (HH LV/HV, HH EHV) or effective dates.
+var deemedRates=[
+  {supplier:'npower',category:'NHH/UMS',effectiveFrom:'2025-01-01',unitrate:30.039,standing:223.78},
+  {supplier:'npower',category:'NHH/UMS',effectiveFrom:'2025-04-01',unitrate:27.753,standing:168.47}
+];
+function findDeemedRate(supplier,dateStr){
+  if(!supplier||!dateStr)return null;
+  var candidates=deemedRates.filter(function(d){return d.supplier.toLowerCase()===String(supplier).toLowerCase()&&d.effectiveFrom<=dateStr;});
+  if(!candidates.length)return null;
+  candidates.sort(function(a,b){return a.effectiveFrom<b.effectiveFrom?1:-1;});
+  return candidates[0];
+}
+
 function money(n){return '£'+n.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+function renderDeemedRates(){
+  var el=document.getElementById('deemed-rate-table');
+  if(!el)return;
+  if(!deemedRates.length){
+    el.innerHTML='<tr><td colspan="6" style="color:var(--tx3);font-size:11px;padding:12px 0">No reference rates yet — add one below from a published deemed rate card.</td></tr>';
+    return;
+  }
+  el.innerHTML=deemedRates.map(function(d,i){
+    return '<tr><td style="color:var(--tx)">'+d.supplier+'</td><td>'+d.category+'</td><td>'+d.effectiveFrom+'</td><td>'+d.unitrate+'</td><td>'+d.standing+'</td><td><span style="color:var(--red);cursor:pointer;font-size:10px" onclick="removeDeemedRate('+i+')">Remove</span></td></tr>';
+  }).join('');
+}
+function addDeemedRate(){
+  var g=function(id){return document.getElementById(id).value;};
+  var supplier=g('dr-supplier'),category=g('dr-category')||'—',effectiveFrom=g('dr-effective');
+  var unitrate=parseFloat(g('dr-unitrate')),standing=parseFloat(g('dr-standing'));
+  if(!supplier||!effectiveFrom||isNaN(unitrate)||isNaN(standing)){
+    alert('Please fill in supplier, effective date, unit rate and standing charge.');
+    return;
+  }
+  deemedRates.push({supplier:supplier,category:category,effectiveFrom:effectiveFrom,unitrate:unitrate,standing:standing});
+  ['dr-supplier','dr-category','dr-effective','dr-unitrate','dr-standing'].forEach(function(id){document.getElementById(id).value='';});
+  renderDeemedRates();
+}
+function removeDeemedRate(i){
+  deemedRates.splice(i,1);
+  renderDeemedRates();
+}
 
 // Pure calculation engine — takes a normalized fields object, returns check results.
 // Shared by both the single-invoice form (runRealValidation) and bulk processing,
@@ -1470,31 +1540,70 @@ function computeValidationResults(f){
   }
 
   var cUnit=f.cUnit,cStanding=f.cStanding,cStart=f.cStart,cEnd=f.cEnd;
-  if(cUnit!==null&&cUnit!==undefined){
+  var isOutOfContract=!!(cEnd&&pstart&&pstart>cEnd);
+  var hasContractOnFile=cUnit!==null&&cUnit!==undefined;
+  // Deemed-rate verification is needed in TWO distinct situations, and they get different
+  // messaging: (1) a contract existed and has since lapsed — compare against both the old
+  // contract AND the published deemed rate; (2) there was never a contract on file at all —
+  // there's nothing of the customer's own to compare against, so the published deemed rate
+  // reference is the ONLY independent check available, and it runs on its own.
+  var needsDeemedCheck=isOutOfContract||!hasContractOnFile;
+
+  if(hasContractOnFile){
     var rateDiff=unitrate-cUnit;
     var rateImpact=rateDiff*kwh/100;
-    results.push({id:idc++,name:'Contract Unit Rate Check',cat:'Tariff',
-      status:Math.abs(rateDiff)<=0.01?'pass':Math.abs(rateDiff)<=0.2?'warning':'error',
-      detail:'Contract rate: '+cUnit+'p/kWh. Billed rate: '+unitrate+'p/kWh. Difference: '+(rateDiff>=0?'+':'')+rateDiff.toFixed(3)+'p/kWh × '+kwh.toLocaleString()+' kWh = '+(rateImpact>=0?'+':'')+money(rateImpact)+' impact on this invoice.'});
+    if(isOutOfContract){
+      results.push({id:idc++,name:'Out-of-Contract Rate Premium',cat:'Tariff',
+        status:rateImpact>0.5?'warning':'pass',
+        detail:'Your contract ended '+cEnd+' and this invoice period starts '+pstart+' — after expiry. You\'re now billed at '+unitrate+'p/kWh vs your last contracted '+cUnit+'p/kWh ('+(rateDiff>=0?'+':'')+((rateDiff/cUnit)*100).toFixed(1)+'%). That premium costs an extra '+money(Math.abs(rateImpact))+' on this invoice alone'+(rateImpact<0?' (unusually, the deemed rate is lower than your old contract here — worth double-checking).':'.')+' This is expected once a contract lapses without renewal, not necessarily a billing error — but it\'s a strong signal to renew or switch rather than stay on deemed rates.'});
+    } else {
+      results.push({id:idc++,name:'Contract Unit Rate Check',cat:'Tariff',
+        status:Math.abs(rateDiff)<=0.01?'pass':Math.abs(rateDiff)<=0.2?'warning':'error',
+        detail:'Contract rate: '+cUnit+'p/kWh. Billed rate: '+unitrate+'p/kWh. Difference: '+(rateDiff>=0?'+':'')+rateDiff.toFixed(3)+'p/kWh × '+kwh.toLocaleString()+' kWh = '+(rateImpact>=0?'+':'')+money(rateImpact)+' impact on this invoice.'});
+    }
     if(rateImpact>0)overcharge+=rateImpact;
-  } else {
+  } else if(!needsDeemedCheck){
     results.push({id:idc++,name:'Contract Unit Rate Check',cat:'Tariff',status:'warning',detail:'No contract unit rate entered — upload the supply contract or enter its rate manually to enable this check.'});
   }
   if(cStanding!==null&&cStanding!==undefined){
     var stDiff=standing-cStanding;
     var stImpact=stDiff/100*days;
-    results.push({id:idc++,name:'Contract Standing Charge Check',cat:'Tariff',
-      status:Math.abs(stDiff)<=0.01?'pass':Math.abs(stDiff)<=1?'warning':'error',
-      detail:'Contract standing charge: '+cStanding+'p/day. Billed: '+standing+'p/day. Difference: '+(stDiff>=0?'+':'')+stDiff.toFixed(3)+'p/day × '+days+' days = '+(stImpact>=0?'+':'')+money(stImpact)+' impact.'});
+    if(!isOutOfContract){
+      results.push({id:idc++,name:'Contract Standing Charge Check',cat:'Tariff',
+        status:Math.abs(stDiff)<=0.01?'pass':Math.abs(stDiff)<=1?'warning':'error',
+        detail:'Contract standing charge: '+cStanding+'p/day. Billed: '+standing+'p/day. Difference: '+(stDiff>=0?'+':'')+stDiff.toFixed(3)+'p/day × '+days+' days = '+(stImpact>=0?'+':'')+money(stImpact)+' impact.'});
+    }
     if(stImpact>0)overcharge+=stImpact;
-  } else {
+  } else if(!needsDeemedCheck){
     results.push({id:idc++,name:'Contract Standing Charge Check',cat:'Tariff',status:'warning',detail:'No contract standing charge entered — upload the supply contract or enter it manually to enable this check.'});
   }
   if(cStart&&cEnd&&pstart){
-    var withinTerm=pstart>=cStart&&pstart<=cEnd;
     results.push({id:idc++,name:'Billing Period vs Contract Term',cat:'Account Matching',
-      status:withinTerm?'pass':'error',
-      detail:'Contract term: '+cStart+' to '+cEnd+'. Invoice period starts '+pstart+'. '+(withinTerm?'Falls within the contract term.':'Falls OUTSIDE the contract term — invoice may be on out-of-contract (deemed) rates, which are typically much higher.')});
+      status:isOutOfContract?'warning':'pass',
+      detail:'Contract term: '+cStart+' to '+cEnd+'. Invoice period starts '+pstart+'. '+(isOutOfContract?'Falls OUTSIDE the contract term — this invoice is likely billed at out-of-contract (deemed) rates, which are set by the supplier and are typically well above negotiated contract rates. See "Out-of-Contract Rate Premium" below for the cost impact.':'Falls within the contract term.')});
+  }
+
+  // The most useful independent check for a customer with nothing of their own to compare
+  // against — no contract, ever, or one that's since lapsed — is whether the supplier is
+  // even charging their OWN published deemed rate correctly. This only runs when a
+  // reference rate is on file for this supplier (see Settings) — otherwise there's
+  // nothing to check it against, and Volt IVR says so rather than guessing.
+  if(needsDeemedCheck){
+    var deemedRef=findDeemedRate(f.supplierName,pstart);
+    if(deemedRef){
+      var deemedUnitDiff=unitrate-deemedRef.unitrate;
+      var deemedUnitImpact=deemedUnitDiff*kwh/100;
+      var deemedStDiff=standing-deemedRef.standing;
+      var deemedStImpact=deemedStDiff/100*days;
+      var deemedTotalImpact=deemedUnitImpact+deemedStImpact;
+      results.push({id:idc++,name:'Deemed Rate Accuracy Check',cat:'Tariff',
+        status:Math.abs(deemedTotalImpact)<=1?'pass':Math.abs(deemedTotalImpact)<=10?'warning':'error',
+        detail:(hasContractOnFile?'':'No contract is on file for this account, so this is the only independent rate check available. ')+'Compared against '+deemedRef.supplier+'\'s published deemed rate ('+deemedRef.category+', effective '+deemedRef.effectiveFrom+'): reference '+deemedRef.unitrate+'p/kWh + '+deemedRef.standing+'p/day standing. Billed '+unitrate+'p/kWh + '+standing+'p/day standing. Combined impact: '+(deemedTotalImpact>=0?'+':'')+money(deemedTotalImpact)+'. '+(Math.abs(deemedTotalImpact)>10?'The supplier appears to be charging above their own published deemed rate — worth querying directly.':'Billed rates are broadly in line with the published deemed rate for this period.')});
+      if(deemedTotalImpact>0)overcharge+=deemedTotalImpact;
+    } else {
+      results.push({id:idc++,name:'Deemed Rate Accuracy Check',cat:'Tariff',status:'warning',
+        detail:(hasContractOnFile?'':'No contract is on file for this account, so this would be the only independent rate check available — but ')+'no published deemed rate is on file for '+(f.supplierName||'this supplier')+' around '+pstart+'. Add one in Settings (from the supplier\'s published deemed/out-of-contract rate card) — without either a contract or a deemed-rate reference, this invoice\'s rates can\'t be independently verified at all.'});
+    }
   }
 
   results.push({id:idc++,name:'Consumption Present',cat:'Consumption',status:kwh>0?'pass':'error',detail:kwh>0?'Consumption of '+kwh.toLocaleString()+' kWh recorded for the period.':'Zero or missing consumption recorded — cannot validate a zero-usage bill.'});
@@ -1502,7 +1611,7 @@ function computeValidationResults(f){
   var errN=results.filter(function(r){return r.status==='error';}).length;
   var warnN=results.filter(function(r){return r.status==='warning';}).length;
   var passN=results.filter(function(r){return r.status==='pass';}).length;
-  return {results:results,errN:errN,warnN:warnN,passN:passN,overcharge:overcharge,days:days};
+  return {results:results,errN:errN,warnN:warnN,passN:passN,overcharge:overcharge,days:days,isOutOfContract:isOutOfContract};
 }
 
 // Side effects only: writes one validated invoice into the app-wide invoices/sites/
@@ -1517,7 +1626,7 @@ function persistInvoiceResult(meta,calc){
   var existingIdx=invoices.findIndex(function(i){return i.id===meta.invnum;});
   if(existingIdx>=0)invoices[existingIdx]=invEntry;else invoices.unshift(invEntry);
 
-  var acctEntry={ref:meta.acctref,site:siteName,mpan:meta.mpan||'—',type:meta.utype,supplier:meta.supplier,tariff:'—',contract:meta.hasContract?'Loaded':'—',status:'Active'};
+  var acctEntry={ref:meta.acctref,site:siteName,mpan:meta.mpan||'—',type:meta.utype,supplier:meta.supplier,tariff:'—',contract:meta.hasContract?'Loaded':'—',status:calc.isOutOfContract?'Out of Contract':'Active'};
   var acctIdx=accounts.findIndex(function(a){return a.ref===meta.acctref;});
   if(acctIdx>=0)accounts[acctIdx]=acctEntry;else accounts.push(acctEntry);
 
@@ -1549,7 +1658,7 @@ function runRealValidation(){
   }
   errEl.style.display='none';
   var cUnit=num('c-unitrate'),cStanding=num('c-standing'),cStart=g('c-start'),cEnd=g('c-end');
-  var f={kwh:kwh,unitrate:unitrate,standing:standing,ccl:ccl,vat:vat,total:total,vatRatePct:vatRatePct,otherCharges:otherCharges,govRelief:govRelief,cclExempt:cclExempt,utype:utype,pstart:pstart,pend:pend,cUnit:cUnit,cStanding:cStanding,cStart:cStart,cEnd:cEnd};
+  var f={kwh:kwh,unitrate:unitrate,standing:standing,ccl:ccl,vat:vat,total:total,vatRatePct:vatRatePct,otherCharges:otherCharges,govRelief:govRelief,cclExempt:cclExempt,utype:utype,pstart:pstart,pend:pend,cUnit:cUnit,cStanding:cStanding,cStart:cStart,cEnd:cEnd,supplierName:supplier};
   var calc=computeValidationResults(f);
 
   checks=calc.results;
@@ -1620,7 +1729,7 @@ function processBulkFiles(files){
       var entry={file:file.name,f:f};
       var requiredOk=f.kwh!==null&&f.unitrate!==null&&f.total!==null&&f.vat!==null&&!f.isCreditNote&&!f.multiInvoiceStatement;
       if(requiredOk){
-        var calcInput={kwh:f.kwh,unitrate:f.unitrate,standing:f.standing,ccl:f.ccl,vat:f.vat,total:f.total,vatRatePct:f.vatratepct,otherCharges:f.otherCharges,govRelief:f.govRelief,cclExempt:f.cclExemptHint,utype:f.utype,pstart:f.pstart,pend:f.pend,cUnit:cUnit,cStanding:cStanding,cStart:cStart,cEnd:cEnd};
+        var calcInput={kwh:f.kwh,unitrate:f.unitrate,standing:f.standing,ccl:f.ccl,vat:f.vat,total:f.total,vatRatePct:f.vatratepct,otherCharges:f.otherCharges,govRelief:f.govRelief,cclExempt:f.cclExemptHint,utype:f.utype,pstart:f.pstart,pend:f.pend,cUnit:cUnit,cStanding:cStanding,cStart:cStart,cEnd:cEnd,supplierName:f.supplier};
         var calc=computeValidationResults(calcInput);
         entry.calc=calc;
         entry.needsReview=false;
